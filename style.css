@@ -37,21 +37,23 @@ body { background-color: #f2f2f2; display: flex; justify-content: center; align-
     display: block;
     object-fit: contain; /* Agar gambar tidak terpotong */
 }
-
-
-/* Footer Input *//* --- Footer Input --- */
+/* --- Footer Input --- */
 .footer {
     padding: 10px 15px;
-    padding-bottom: max(10px, env(safe-area-inset-bottom)); /* Menempel pas di atas keyboard */
+    /* Ganti padding-bottom dengan ini */
+    padding-bottom: calc(5px + env(safe-area-inset-bottom)); 
+    
     background-color: #ffffff;
     border-top: 1px solid #f0f0f0;
     display: flex;
     align-items: center;
     gap: 10px;
     flex-shrink: 0;
-    /* Tambahkan baris ini agar posisinya pas */
     position: relative; 
     z-index: 10;
+    
+    /* Tambahkan ini agar jarak dengan keyboard lebih dekat */
+    margin-bottom: -10px; 
 }
 .menu-icon { font-size: 24px; color: #333; cursor: pointer; padding: 5px; border-radius: 50%; transition: background 0.2s; }
 .menu-icon:hover { background-color: #f0f0f0; }
