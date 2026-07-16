@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mysaku Chat</title>
+    <!-- Memanggil file CSS eksternal -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="chat-container" id="app">
+    <!-- HEADER -->
+    <div class="header">
+        <span>Mysaku</span>
+        <div class="header-right" id="btnTopMenu">⋮</div>
+    </div>
+
+    <!-- TOP MENU (Kanan Atas) -->
+    <div class="top-menu" id="topMenu">
+        <div class="top-menu-item" id="aboutApp">Tentang Aplikasi</div>
+        <div class="top-menu-item" id="settings">Pengaturan</div>
+    </div>
+
+    <!-- CHAT AREA -->
+    <div class="chat-area" id="chatArea">
+        <!-- Pesan sambutan awal akan dibuat oleh JavaScript -->
+    </div>
+
+    <!-- FOOTER INPUT -->
+    <div class="footer">
+        <div class="menu-icon" id="btnHamburger">≡</div>
+        <div class="input-wrapper">
+            <input type="text" id="userInput" placeholder="Ketik pesan..." autocomplete="off">
+        </div>
+        <button class="send-btn" id="btnSend">
+            <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+        </button>
+    </div>
+
+    <!-- OVERLAY (Latar belakang gelap saat menu terbuka) -->
+    <div class="overlay" id="overlay"></div>
+
+    <!-- BOTTOM SHEET (Upload Foto) -->
+    <div class="bottom-sheet" id="bottomSheet">
+        <h3>Upload Foto & Keterangan</h3>
+        <input type="file" id="fileInput" accept="image/*" style="display:none;">
+        <button id="btnSelectFile" style="padding: 10px; border: 1px dashed #1a73e8; background: transparent; color: #1a73e8; border-radius: 10px; cursor: pointer;">📁 Pilih Foto</button>
+        <img id="imagePreview" class="sheet-image-preview">
+        <input type="text" id="captionInput" class="sheet-input" placeholder="Tulis keterangan foto...">
+        <button class="sheet-btn" id="btnSendPhoto">Kirim Foto</button>
+    </div>
+
+    <!-- CONTEXT MENU (Long Press - Edit/Hapus) -->
+   <!-- Context Menu (Long Press - Edit/Hapus) -->
+<div class="ctx-menu" id="ctxMenu">
+    <div class="ctx-item" id="editBtn">✏️ Edit</div>
+    <div class="ctx-item delete" id="deleteBtn">🗑️ Hapus</div>
+</div>
+</div>
+
+<!-- Memanggil file JavaScript eksternal di bagian paling bawah -->
+<script src="script.js"></script>
+</body>
+</html>
