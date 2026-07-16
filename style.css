@@ -55,12 +55,10 @@ body {
     display: block;
     object-fit: contain; /* Agar gambar tidak terpotong */
 }
-/* --- Footer Input --- */
 .footer {
     padding: 10px 15px;
-    /* Ganti padding-bottom dengan ini */
-    padding-bottom: calc(5px + env(safe-area-inset-bottom)); 
-    
+    padding-bottom: 0 !important; /* HAPUS JARAK DI BAWAH INPUT! */
+    margin-bottom: 0 !important;  /* HAPUS JARAK DI BAWAH INPUT! */
     background-color: #ffffff;
     border-top: 1px solid #f0f0f0;
     display: flex;
@@ -69,9 +67,6 @@ body {
     flex-shrink: 0;
     position: relative; 
     z-index: 10;
-    
-    /* Tambahkan ini agar jarak dengan keyboard lebih dekat */
-    margin-bottom: -10px; 
 }
 .menu-icon { font-size: 24px; color: #333; cursor: pointer; padding: 5px; border-radius: 50%; transition: background 0.2s; }
 .menu-icon:hover { background-color: #f0f0f0; }
