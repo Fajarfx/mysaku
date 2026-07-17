@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Mysaku Chat</title>
+    
+    <!-- 1. TAMBAHKAN TAILWIND CSS (Agar navbar berfungsi) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- 2. Font & Ikon Material (Untuk Navbar) -->
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+    
+    <!-- 3. CSS Eksternal Chat -->
+    <link rel="stylesheet" href="css/style.css">
+    
+    <!-- 4. CSS TAMBAHAN KHUSUS NAVBAR -->
+    <style>
+        /* Menghilangkan garis bawah biru pada link navbar */
+        nav a {
+            text-decoration: none !important;
+        }
+        /* Mengatur ukuran font ikon */
+        .material-symbols-outlined {
+            font-size: 24px;
+        }
+    </style>
+</head>
+<body>
+
+<!-- ===== WRAPPER CHAT ===== -->
+<div class="chat-container" id="app">
+    <!-- HEADER -->
+    <!-- HEADER -->
+<div class="header">
+    <span><span style="color: #0028B3; font-weight: bold;">My</span>Saku</span>
+</div>
+
+    <!-- TOP MENU (Kanan Atas) -->
+    
+
+    <!-- CHAT AREA -->
+    <div class="chat-area" id="chatArea">
+        <!-- Pesan sambutan awal akan dibuat oleh JavaScript -->
+    </div>
+
+    <!-- FOOTER INPUT -->
+    <div class="footer">
+        <div class="menu-icon" id="btnHamburger">≡</div>
+        <div class="input-wrapper">
+            <input type="text" id="userInput" placeholder="Ketik pesan..." autocomplete="off">
+        </div>
+        <button class="send-btn" id="btnSend">
+            <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+        </button>
+    </div>
+
+    <!-- OVERLAY (Latar belakang gelap saat menu terbuka) -->
+    <div class="overlay" id="overlay"></div>
+
+    <!-- BOTTOM SHEET (Upload Foto) -->
+    <div class="bottom-sheet" id="bottomSheet">
+        <h3>Upload Foto & Keterangan</h3>
+        <input type="file" id="fileInput" accept="image/*" style="display:none;">
+        <button id="btnSelectFile" style="padding: 10px; border: 1px dashed #1a73e8; background: transparent; color: #1a73e8; border-radius: 10px; cursor: pointer;">📁 Pilih Foto</button>
+        <img id="imagePreview" class="sheet-image-preview">
+        <input type="text" id="captionInput" class="sheet-input" placeholder="Tulis keterangan foto...">
+        <button class="sheet-btn" id="btnSendPhoto">Kirim Foto</button>
+    </div>
+
+    <!-- CONTEXT MENU (Long Press - Edit/Hapus) -->
+    <div class="ctx-menu" id="ctxMenu">
+        <div class="ctx-item" id="editBtn">✏️ Edit</div>
+        <div class="ctx-item delete" id="deleteBtn">🗑️ Hapus</div>
+    </div>
+</div> 
+<!-- ===== TUTUP CHAT CONTAINER ===== -->
+
+
+<!-- ========================================================== -->
+<!-- ===== NAVBAR BAWAH (DILETAKKAN DI LUAR CHAT CONTAINER) ==== -->
+<!-- ========================================================== -->
+<nav class="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[400px] flex justify-around items-center h-16 px-4 bg-white/95 backdrop-blur-xl border-t border-[#d6e0f5] z-50">
+  <a href="/index.html" class="flex flex-col items-center text-[#0028B3] font-bold">
+    <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">chat_bubble</span>
+    <span class="text-[10px] font-medium">Chat</span>
+  </a>
+  <a href="/pages/laporan.html" class="flex flex-col items-center text-[#6a7fa8] hover:text-[#0028B3] transition-colors">
+    <span class="material-symbols-outlined">bar_chart</span>
+    <span class="text-[10px] font-medium">Laporan</span>
+  </a>
+  <a href="/pages/riwayat.html" class="flex flex-col items-center text-[#6a7fa8] hover:text-[#0028B3] transition-colors">
+    <span class="material-symbols-outlined">history</span>
+    <span class="text-[10px] font-medium">Riwayat</span>
+  </a>
+  <a href="#" class="flex flex-col items-center text-[#6a7fa8] hover:text-[#0028B3] transition-colors">
+    <span class="material-symbols-outlined">settings</span>
+    <span class="text-[10px] font-medium">Pengaturan</span>
+  </a>
+</nav>
+
+<!-- Memanggil file JavaScript eksternal -->
+<script src="js/script.js"></script>
+
+<!-- DEBUG SEMENTARA: hapus setelah selesai cek -->
+<script src="https://cdn.jsdelivr.net/npm/eruda"></script>
+<script>eruda.init();</script>
+
+</body>
+</html>
