@@ -500,11 +500,21 @@ function loadChatMessages() {
         const bubble = document.createElement('div');
         bubble.className = `bubble ${msg.sender}`;
 
+        // --- PERBAIKAN PENTING DI SINI ---
+        // Simpan timestamp, uniqueId, transactionId, type, dan amount
         row.dataset.timestamp = msg.timestamp;
         row.dataset.uniqueId = msg.uniqueId;
         if (msg.transactionId) {
             row.dataset.transactionId = msg.transactionId;
         }
+        // TAMBAHKAN 2 BARIS INI AGAR EDIT/DELETE BISA ROLLBACK SALDO!
+        if (msg.transactionType) {
+            row.dataset.type = msg.transactionType;
+        }
+        if (msg.transactionAmount) {
+            row.dataset.amount = msg.transactionAmount;
+        }
+        // ------------------------------------
 
         if (msg.isImage && msg.imageUrl) {
             const img = document.createElement('img');
