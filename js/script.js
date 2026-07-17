@@ -41,9 +41,11 @@ function formatDateLabel(timestamp) {
     return date.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 }
 
-function addMessage(text, sender, isImage = false, imageUrl = '', transactionData = null) {
+function addMessage(text, sender, isImage = false, imageUrl = '', transactionData = null, pairId = null) {
     const now = Date.now();
     const currentDateLabel = formatDateLabel(now);
+    // PASTIKAN pairId digunakan. Jika null, buat baru.
+    const uniqueId = pairId || (Date.now() + '-' + Math.random().toString(36).substr(2, 9));
 
     if (lastMessageDate !== currentDateLabel) {
         const dividerRow = document.createElement('div');
@@ -60,9 +62,16 @@ function addMessage(text, sender, isImage = false, imageUrl = '', transactionDat
     const bubble = document.createElement('div');
     bubble.className = `bubble ${sender}`;
 
+    // Simpan ID yang sama (pairId)
+    row.dataset.timestamp = now;
+    row.dataset.uniqueId = uniqueId;
+
     if (transactionData) {
         row.dataset.type = transactionData.type;
         row.dataset.amount = transactionData.amount;
+        if (transactionData.id) {
+            row.dataset.transactionId = transactionData.id;
+        }
     }
 
     if(isImage && imageUrl) {
@@ -90,6 +99,21 @@ function addMessage(text, sender, isImage = false, imageUrl = '', transactionDat
     chatArea.appendChild(row);
     chatArea.scrollTop = chatArea.scrollHeight;
 
+    // --- PASANG EVENT LISTENER TOMBOL SAAT PESAN BARU DIBUAT ---
+    if (sender === 'bot' && text && text.includes('btn-set-saldo-modal')) {
+        const btn = row.querySelector('.btn-set-saldo-modal');
+        if (btn) {
+            btn.onclick = (e) => {
+                e.stopPropagation();
+                document.getElementById('saldoPopup').classList.remove('hidden');
+                document.getElementById('saldoPopup').classList.add('flex');
+                setTimeout(() => {
+                    document.getElementById('saldoPopupInput').focus();
+                }, 100);
+            };
+        }
+    }
+
     attachLongPressEvent(row, sender);
     return row;
 }
@@ -100,7 +124,24 @@ function attachLongPressEvent(element, sender) {
     const showMenu = (e) => {
         clearTimeout(pressTimer);
         pressTimer = setTimeout(() => {
-            if(sender === 'user') showContextMenu(e, element);
+            if(sender === 'user') {
+                const timestampAttr = element.dataset.timestamp;
+                if (timestampAttr) {
+                    const msgTime = parseInt(timestampAttr);
+                    const now = Date.now();
+                    const diffMinutes = (now - msgTime) / (1000 * 60);
+                    const diffHours = diffMinutes / 60;
+                    
+                    let allowEdit = false;
+                    let allowDelete = false;
+
+                    if (diffHours <= 5) allowEdit = true;
+                    if (diffMinutes <= 2) allowDelete = true;
+
+                    showContextMenu(e, element, allowEdit, allowDelete);
+                    return;
+                }
+            }
         }, 600);
     };
     const hideMenu = () => clearTimeout(pressTimer);
@@ -112,7 +153,7 @@ function attachLongPressEvent(element, sender) {
     element.addEventListener('touchend', hideMenu);
 }
 
-function showContextMenu(event, element) {
+function showContextMenu(event, element, allowEdit = false, allowDelete = false) {
     closeAllMenus();
     selectedMessageElement = element;
     let x = event.clientX || event.touches[0].clientX;
@@ -122,6 +163,9 @@ function showContextMenu(event, element) {
     ctxMenu.style.top = y + 'px';
     ctxMenu.classList.add('active');
     overlay.classList.add('active');
+
+    document.getElementById('editBtn').style.display = allowEdit ? 'block' : 'none';
+    document.getElementById('deleteBtn').style.display = allowDelete ? 'block' : 'none';
 
     const menuWidth = ctxMenu.offsetWidth;
     const windowWidth = window.innerWidth;
@@ -133,6 +177,16 @@ function showContextMenu(event, element) {
 editBtn.onclick = () => {
     const bubble = selectedMessageElement.querySelector('.bubble.user');
     if(bubble && !bubble.querySelector('img')) {
+
+        // --- 1. Hapus riwayat lama ---
+        const oldTransactionId = selectedMessageElement.dataset.transactionId;
+        if (oldTransactionId) {
+            let history = getTransactionHistory();
+            const filteredHistory = history.filter(item => item.id != oldTransactionId);
+            localStorage.setItem('mysaku_history', JSON.stringify(filteredHistory));
+        }
+
+        // --- 2. Rollback saldo ---
         const oldType = selectedMessageElement.dataset.type;
         const oldAmount = parseFloat(selectedMessageElement.dataset.amount);
         if (currentBalance !== null && oldType && !isNaN(oldAmount)) {
@@ -143,15 +197,29 @@ editBtn.onclick = () => {
             }
             localStorage.setItem('mysaku_balance', currentBalance.toString());
         }
+
+        // --- 3. Hapus bot dari layar ---
         const currentUserRow = selectedMessageElement;
         let nextElement = currentUserRow.nextElementSibling;
         if (nextElement && nextElement.classList.contains('message-row') && nextElement.classList.contains('bot')) {
             nextElement.remove();
         }
+
+        // --- 4. Hapus user & bot dari localStorage ---
+        const oldUniqueId = selectedMessageElement.dataset.uniqueId;
+        let messages = localStorage.getItem('mysaku_chat_messages');
+        if (messages) {
+            let parsed = JSON.parse(messages);
+            let finalMessages = parsed.filter(msg => msg.uniqueId !== oldUniqueId);
+            localStorage.setItem('mysaku_chat_messages', JSON.stringify(finalMessages));
+        }
+
+        // --- 5. Isi input dengan teks lama, user tinggal kirim ulang ---
         userInput.value = bubble.innerText;
         userInput.focus();
         selectedMessageElement.remove();
         closeAllMenus();
+
     } else {
         alert('Tidak bisa mengedit pesan berisi gambar.');
         closeAllMenus();
@@ -160,6 +228,44 @@ editBtn.onclick = () => {
 
 deleteBtn.onclick = () => {
     if(confirm('Hapus pesan ini?')) {
+        const oldTransactionId = selectedMessageElement.dataset.transactionId;
+        const currentUserRow = selectedMessageElement;
+        let nextElement = currentUserRow.nextElementSibling;
+        const oldUniqueId = selectedMessageElement.dataset.uniqueId;
+
+        // --- 1. Rollback saldo ---
+        const oldType = selectedMessageElement.dataset.type;
+        const oldAmount = parseFloat(selectedMessageElement.dataset.amount);
+        if (currentBalance !== null && oldType && !isNaN(oldAmount)) {
+            if (oldType === 'pemasukan') {
+                currentBalance = currentBalance - oldAmount;
+            } else if (oldType === 'pengeluaran') {
+                currentBalance = currentBalance + oldAmount;
+            }
+            localStorage.setItem('mysaku_balance', currentBalance.toString());
+        }
+
+        // --- 2. Hapus riwayat transaksi ---
+        if (oldTransactionId) {
+            let history = getTransactionHistory();
+            const filteredHistory = history.filter(item => item.id != oldTransactionId);
+            localStorage.setItem('mysaku_history', JSON.stringify(filteredHistory));
+        }
+
+        // --- 3. Hapus bot dari layar ---
+        if (nextElement && nextElement.classList.contains('message-row') && nextElement.classList.contains('bot')) {
+            nextElement.remove();
+        }
+
+        // --- 4. Hapus user & bot dari localStorage ---
+        let messages = localStorage.getItem('mysaku_chat_messages');
+        if (messages) {
+            let parsed = JSON.parse(messages);
+            let finalMessages = parsed.filter(msg => msg.uniqueId !== oldUniqueId);
+            localStorage.setItem('mysaku_chat_messages', JSON.stringify(finalMessages));
+        }
+
+        // --- 5. Hapus user dari layar ---
         selectedMessageElement.remove();
         closeAllMenus();
     }
@@ -201,11 +307,16 @@ btnSendPhoto.onclick = () => {
         const result = parseTransaction(caption);
         if (result.success) {
             transactionData = result.data;
-            saveTransactionToHistory(transactionData);
+            const newId = saveTransactionToHistory(transactionData);
+            transactionData.id = newId;
         }
     }
-    addMessage(caption, 'user', true, imagePreview.src, transactionData);
-    saveChatMessage(caption, 'user', true, imagePreview.src);
+    
+    // --- SATU ID UNTUK USER & BOT ---
+    const pairId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+    
+    addMessage(caption, 'user', true, imagePreview.src, transactionData, pairId);
+    saveChatMessage(caption, 'user', true, imagePreview.src, transactionData ? transactionData.id : null, pairId);
     
     closeAllMenus();
     setTimeout(() => {
@@ -215,8 +326,8 @@ btnSendPhoto.onclick = () => {
         } else {
             botReply = getBotResponse(caption);
         }
-        addMessage(botReply, 'bot');
-        saveChatMessage(botReply, 'bot', false, '');
+        addMessage(botReply, 'bot', false, '', null, pairId);
+        saveChatMessage(botReply, 'bot', false, '', null, pairId);
     }, 1000);
 };
 
@@ -229,11 +340,9 @@ function closeAllMenus() {
 overlay.onclick = closeAllMenus;
 
 // --- 6. Logika AI Bot & Parser ---
-
 function getBotResponse(inputText) {
     const lowerText = inputText.toLowerCase();
     
-    // --- FITUR BANTUAN ---
     if (lowerText.includes('bantuan') || lowerText.includes('help') || lowerText.includes('menu') || lowerText.includes('panduan')) {
         return `<b>📖 Panduan Menggunakan Mysaku</b><br><br>
         <b>1. 💰 Mencatat Saldo Awal</b><br><i>Contoh:</i> "Saldo awal 2jt"<br>
@@ -245,31 +354,30 @@ function getBotResponse(inputText) {
         <hr><i>💡 Tip: Gunakan 20rb, 2.5jt, Rp 50.000</i>`;
     }
 
-    // --- CEK SALDO ---
     if (lowerText.includes('cek saldo') || lowerText.includes('sisa uang') || lowerText.includes('saldo saya')) {
         if (currentBalance === null) return `❌ Saldo belum tercatat. Set saldo awal dulu: "Saldo awal 2jt"`;
         else return `💰 Saldo kamu: <b>Rp ${new Intl.NumberFormat('id-ID').format(currentBalance)}</b>`;
     }
 
-    // --- CEK UTANG ---
     if (lowerText.includes('cek utang') || lowerText.includes('total utang')) {
         const debt = localStorage.getItem('mysaku_debt') ? parseFloat(localStorage.getItem('mysaku_debt')) : 0;
         return `💰 Total Utang Kamu Saat Ini: <b>Rp ${new Intl.NumberFormat('id-ID').format(debt)}</b>`;
     }
 
-    // --- PRIORITAS TERTINGGI: SET SALDO AWAL ---
-    // Bagian ini HARUS dijalankan SEBELUM parser transaksi
     if (lowerText.includes('saldo awal') || lowerText.includes('set saldo')) {
         const amount = parseAmount(inputText);
         if (amount) {
-            updateBalance(amount);
+            if (currentBalance === null) {
+                updateBalance(amount);
+            } else {
+                updateBalance(currentBalance + amount);
+            }
             return `✅ Saldo awal tercatat <b>Rp ${new Intl.NumberFormat('id-ID').format(amount)}</b>.`;
         } else {
             return `❌ Format tidak valid. Contoh: "Saldo awal 2jt"`;
         }
     }
 
-    // --- UTANG / BAYAR UTANG ---
     if (lowerText.includes('utang') || lowerText.includes('hutang')) {
         const amount = parseAmount(inputText);
         if (!amount) return `❌ Format tidak valid. Contoh: <i>"Utang ke Andi 200rb"</i>`;
@@ -287,7 +395,7 @@ function getBotResponse(inputText) {
         }
     }
 
-    // --- LOGIKA PARSER TRANSAKSI (Pemasukan / Pengeluaran Biasa) ---
+    // --- LOGIKA PARSER TRANSAKSI ---
     const result = parseTransaction(inputText);
     if (!result.success) return result.message;
     
@@ -295,13 +403,26 @@ function getBotResponse(inputText) {
     const formattedAmount = new Intl.NumberFormat('id-ID').format(d.amount);
     const typeLabel = d.type === 'pemasukan' ? '📈 Pemasukan' : '📉 Pengeluaran';
     let responseText = `✅ Berhasil mencatat ${d.type}!<br>📌 <b>${typeLabel}</b><br>💰 Rp ${formattedAmount}<br>📂 ${d.category}<br>💳 ${d.wallet}`;
-    
-    if (currentBalance !== null) {
-        let newBalance = d.type === 'pemasukan' ? currentBalance + d.amount : currentBalance - d.amount;
-        updateBalance(newBalance);
-        responseText += `<br><br>💼 Sisa Saldo: <b>Rp ${new Intl.NumberFormat('id-ID').format(newBalance)}</b>`;
-    } else {
-        responseText += `<br><br><i>⚠️ Saldo awal belum diset. Ketik "Saldo awal 2jt".</i>`;
+
+    if (currentBalance === null) {
+        if (d.type === 'pengeluaran') {
+            responseText += `<br><br>⚠️ <b>Saldo kamu belum diatur!</b><br>Saat ini saldo kamu negatif: <b>Rp ${new Intl.NumberFormat('id-ID').format(-d.amount)}</b>`;
+            responseText += `<br><br><i>Untuk melanjutkan, atur saldo awal kamu sekarang.</i><br><br>`;
+            responseText += `<button class="btn-set-saldo-modal px-6 py-2 bg-[#0028B3] text-white rounded-full text-sm font-medium shadow-md">Atur Saldo Awal</button>`;
+        }
+    } 
+    else if (currentBalance !== null && currentBalance < 0) {
+        if (d.type === 'pengeluaran') {
+            return `⛔ <b>Transaksi sementara dibatasi.</b><br><br>
+            Saldo kamu saat ini masih negatif: <b>Rp ${new Intl.NumberFormat('id-ID').format(currentBalance)}</b>.<br><br>
+            <i>Yuk, atur saldo awal kamu dulu agar bisa kembali mencatat transaksi!</i><br><br>
+            <button class="btn-set-saldo-modal px-6 py-2 bg-[#0028B3] text-white rounded-full text-sm font-medium shadow-md">Atur Saldo Awal</button>
+            <br><br>
+            <span style="font-size: 12px; color: #6a7fa8;">💡 Atau ketik manual: <i>"saldo awal [nominal]"</i></span>`;
+        }
+    } 
+    else {
+        responseText += `<br><br>💼 Sisa Saldo: <b>Rp ${new Intl.NumberFormat('id-ID').format(currentBalance)}</b>`;
     }
     return responseText;
 }
@@ -318,28 +439,33 @@ function getTransactionHistory() {
 function saveTransactionToHistory(transactionData) {
     const history = getTransactionHistory();
     const newEntry = {
-        id: Date.now(),
+        id: Date.now() + Math.floor(Math.random() * 1000),
         ...transactionData,
         date: new Date().toISOString()
     };
     history.unshift(newEntry);
     localStorage.setItem('mysaku_history', JSON.stringify(history));
+    return newEntry.id;
 }
 
 // ==========================================
 // --- SIMPAN & MUAT ULANG CHAT MESSAGES ---
 // ==========================================
 
-function saveChatMessage(text, sender, isImage = false, imageUrl = '') {
+function saveChatMessage(text, sender, isImage = false, imageUrl = '', transactionId = null, uniqueId = null) {
     let messages = localStorage.getItem('mysaku_chat_messages');
     messages = messages ? JSON.parse(messages) : [];
     
+    const uid = uniqueId || (Date.now() + '-' + Math.random().toString(36).substr(2, 9));
+    
     messages.push({
+        uniqueId: uid,
         text: text,
         sender: sender,
         isImage: isImage,
         imageUrl: imageUrl,
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        transactionId: transactionId
     });
 
     if (messages.length > 50) messages = messages.slice(-50);
@@ -351,13 +477,34 @@ function loadChatMessages() {
     if (!messages) return;
 
     const parsed = JSON.parse(messages);
+    let lastLoadedDate = null;
+
     parsed.forEach(msg => {
+        const msgDate = new Date(msg.timestamp);
+        const currentDateLabel = formatDateLabel(msg.timestamp);
+
+        if (lastLoadedDate !== currentDateLabel && lastLoadedDate !== null) {
+            const dividerRow = document.createElement('div');
+            dividerRow.className = 'date-divider';
+            dividerRow.innerHTML = `<span>${currentDateLabel}</span>`;
+            chatArea.appendChild(dividerRow);
+        }
+        if (lastLoadedDate === null) {
+            lastLoadedDate = currentDateLabel;
+        }
+
         const row = document.createElement('div');
         row.className = `message-row ${msg.sender}`;
         const wrapper = document.createElement('div');
         wrapper.className = 'message-wrapper';
         const bubble = document.createElement('div');
         bubble.className = `bubble ${msg.sender}`;
+
+        row.dataset.timestamp = msg.timestamp;
+        row.dataset.uniqueId = msg.uniqueId;
+        if (msg.transactionId) {
+            row.dataset.transactionId = msg.transactionId;
+        }
 
         if (msg.isImage && msg.imageUrl) {
             const img = document.createElement('img');
@@ -374,14 +521,34 @@ function loadChatMessages() {
             bubble.innerHTML = msg.text;
         }
 
+        const timeElement = document.createElement('div');
+        timeElement.className = 'message-time';
+        timeElement.innerText = msgDate.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+
         wrapper.appendChild(bubble);
+        wrapper.appendChild(timeElement);
         row.appendChild(wrapper);
         chatArea.appendChild(row);
+        attachLongPressEvent(row, msg.sender);
+
+        if (msg.sender === 'bot' && msg.text && msg.text.includes('btn-set-saldo-modal')) {
+            const btn = row.querySelector('.btn-set-saldo-modal');
+            if (btn) {
+                btn.onclick = (e) => {
+                    e.stopPropagation();
+                    document.getElementById('saldoPopup').classList.remove('hidden');
+                    document.getElementById('saldoPopup').classList.add('flex');
+                    setTimeout(() => {
+                        document.getElementById('saldoPopupInput').focus();
+                    }, 100);
+                };
+            }
+        }
     });
     chatArea.scrollTop = chatArea.scrollHeight;
 }
 
-
+// --- 7. Fungsi Kirim Pesan Utama ---
 // --- 7. Fungsi Kirim Pesan Utama ---
 // --- 7. Fungsi Kirim Pesan Utama ---
 function sendMessage() {
@@ -390,25 +557,30 @@ function sendMessage() {
 
     const lowerText = text.toLowerCase();
 
-    // --- PERBAIKAN PENTING: SALDO AWAL HANYA SEKALI ---
-    if (lowerText.includes('saldo awal') || lowerText.includes('set saldo')) {
-        // Cek apakah saldo awal sudah pernah diset sebelumnya
-        const isFirstTimeSetup = (currentBalance === null);
+    const isBlocked = (currentBalance !== null && currentBalance < 0);
+    const isExpense = lowerText.includes('beli') || lowerText.includes('bayar') || lowerText.includes('makan') || lowerText.includes('transport') || lowerText.includes('tagihan') || lowerText.includes('bensin') || lowerText.includes('-');
+    
+    if (isBlocked && isExpense && !lowerText.includes('saldo awal') && !lowerText.includes('set saldo')) {
+        alert(`⛔ Transaksi ditolak!\nSaldo kamu masih negatif: Rp ${new Intl.NumberFormat('id-ID').format(currentBalance)}\n\nSilakan atur saldo awal terlebih dahulu.`);
+        return;
+    }
 
+    if (lowerText.includes('saldo awal') || lowerText.includes('set saldo')) {
+        const isFirstTimeSetup = (currentBalance === null || currentBalance < 0);
+        
         if (!isFirstTimeSetup) {
-            // Jika sudah ada saldo, tolak perintah ini
             addMessage(text, 'user', false, '', null);
             saveChatMessage(text, 'user', false, '');
             userInput.value = '';
             setTimeout(() => {
-                const botReply = `❌ Saldo awal sudah pernah diset sebelumnya. Untuk menambah uang, gunakan perintah <b>"Terima gaji"</b> atau <b>"Terima uang"</b>.`;
-                addMessage(botReply, 'bot');
-                saveChatMessage(botReply, 'bot', false, '');
+                const botReply = `❌ Saldo awal sudah pernah diset dan saldo kamu sudah positif. Gunakan "Terima gaji".`;
+                const pairId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+                addMessage(botReply, 'bot', false, '', null, pairId);
+                saveChatMessage(botReply, 'bot', false, '', null, pairId);
             }, 1000);
             return;
         }
 
-        // --- Jika ini pertama kali (Saldo awal masih null) ---
         const amount = parseAmount(text);
         if (!amount) {
             addMessage(text, 'user', false, '', null);
@@ -416,56 +588,64 @@ function sendMessage() {
             userInput.value = '';
             setTimeout(() => {
                 const botReply = `❌ Format tidak valid. Contoh: "Saldo awal 2jt"`;
-                addMessage(botReply, 'bot');
-                saveChatMessage(botReply, 'bot', false, '');
+                const pairId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+                addMessage(botReply, 'bot', false, '', null, pairId);
+                saveChatMessage(botReply, 'bot', false, '', null, pairId);
             }, 1000);
             return;
         }
 
-        // Simpan saldo
-        updateBalance(amount);
+        if (currentBalance === null) {
+            updateBalance(amount);
+        } else {
+            updateBalance(currentBalance + amount);
+        }
 
-        // Catat sebagai pemasukan pertama (agar muncul di grafik & riwayat)
-        const transactionData = {
-            type: 'pemasukan',
-            amount: amount,
-            category: 'Saldo Awal',
-            wallet: 'Kas',
-            rawText: text,
-            date: Date.now()
-        };
-        saveTransactionToHistory(transactionData);
+        const transactionData = { type: 'pemasukan', amount: amount, category: 'Saldo Awal', wallet: 'Kas', rawText: text, date: Date.now() };
+        const newId = saveTransactionToHistory(transactionData);
 
-        // Tampilkan di chat
-        addMessage(text, 'user', false, '', transactionData);
-        saveChatMessage(text, 'user', false, '');
+        // --- SATU ID UNTUK USER & BOT ---
+        const pairId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+        
+        addMessage(text, 'user', false, '', { ...transactionData, id: newId }, pairId);
+        saveChatMessage(text, 'user', false, '', newId, pairId);
         userInput.value = '';
 
         setTimeout(() => {
-            const botReply = `✅ Selamat datang di MySaku!<br>Saldo awal sebesar <b>Rp ${new Intl.NumberFormat('id-ID').format(amount)}</b> berhasil dicatat.<br><br>💡 Mulai sekarang, gunakan perintah <b>"Terima gaji"</b> atau <b>"Terima uang"</b> untuk mencatat pemasukan.`;
-            addMessage(botReply, 'bot');
-            saveChatMessage(botReply, 'bot', false, '');
+            const botReply = `✅ Saldo awal sebesar <b>Rp ${new Intl.NumberFormat('id-ID').format(amount)}</b> berhasil dicatat.`;
+            addMessage(botReply, 'bot', false, '', null, pairId);
+            saveChatMessage(botReply, 'bot', false, '', null, pairId);
         }, 1000);
-
-        return; // Hentikan eksekusi di sini
+        return;
     }
-    // --- AKHIR PERBAIKAN SALDO AWAL ---
 
-    // --- Logika Normal untuk Transaksi Lainnya ---
+    // --- TRANSAKSI BIASA ---
     const result = parseTransaction(text);
     let transactionData = null;
+    let newId = null;
+
     if (result.success) {
         transactionData = result.data;
-        saveTransactionToHistory(transactionData);
+        newId = saveTransactionToHistory(transactionData);
+
+        // --- INI LOGIKA KALKULASI SALDO ANDA (TIDAK DIUBAH) ---
+        if (transactionData.type === 'pemasukan') {
+            currentBalance = (currentBalance || 0) + transactionData.amount;
+        } else if (transactionData.type === 'pengeluaran') {
+            currentBalance = (currentBalance || 0) - transactionData.amount;
+        }
+        localStorage.setItem('mysaku_balance', currentBalance.toString());
     }
-    addMessage(text, 'user', false, '', transactionData);
-    saveChatMessage(text, 'user', false, '');
+    
+    const pairId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+    addMessage(text, 'user', false, '', { ...transactionData, id: newId }, pairId);
+    saveChatMessage(text, 'user', false, '', newId, pairId);
     
     userInput.value = '';
     setTimeout(() => {
         const botReply = getBotResponse(text);
-        addMessage(botReply, 'bot');
-        saveChatMessage(botReply, 'bot', false, '');
+        addMessage(botReply, 'bot', false, '', null, pairId);
+        saveChatMessage(botReply, 'bot', false, '', null, pairId);
     }, 1000);
 }
 
@@ -479,7 +659,10 @@ document.addEventListener('DOMContentLoaded', function() {
     loadChatMessages();
 });
 
-addMessage("Halo! Aku Mysaku, asisten keuanganmu. 👋<br><br>Ketik <b>'bantuan'</b> untuk melihat daftar perintah.", 'bot');
+// Hanya tampilkan sambutan jika belum ada pesan sama sekali
+if (chatArea.children.length === 0) {
+    addMessage("Halo! Aku Mysaku, asisten keuanganmu. 👋<br><br>Ketik <b>'bantuan'</b> untuk melihat daftar perintah.", 'bot');
+}
 
 // ==========================================
 // --- MODUL PARSER KEUANGAN ---
@@ -617,3 +800,41 @@ function updateDebt(newDebt) {
     localStorage.setItem('mysaku_debt', currentDebt.toString());
     return currentDebt;
 }
+
+// ==========================================
+// --- LOGIKA POPUP SALDO AWAL ---------------
+// ==========================================
+
+const popup = document.getElementById('saldoPopup');
+const popupInput = document.getElementById('saldoPopupInput');
+const popupOk = document.getElementById('saldoPopupOk');
+const popupCancel = document.getElementById('saldoPopupCancel');
+
+popupOk.onclick = () => {
+    const val = popupInput.value.trim();
+    if (val === '') {
+        alert('Silakan masukkan nominal saldo awal.');
+        return;
+    }
+
+    popup.classList.add('hidden');
+    popup.classList.remove('flex');
+    
+    userInput.value = `saldo awal ${val}`;
+    sendMessage();
+    popupInput.value = '';
+};
+
+popupCancel.onclick = () => {
+    popup.classList.add('hidden');
+    popup.classList.remove('flex');
+    popupInput.value = '';
+};
+
+popup.onclick = (e) => {
+    if (e.target === popup) {
+        popup.classList.add('hidden');
+        popup.classList.remove('flex');
+        popupInput.value = '';
+    }
+};

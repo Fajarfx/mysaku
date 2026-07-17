@@ -5,7 +5,9 @@
 // --- Fungsi Baca Data ---
 function getBalance() {
     const bal = localStorage.getItem('mysaku_balance');
-    return bal ? parseFloat(bal) : 0;
+    // Jika null atau undefined, jadikan 0
+    if (bal === null || bal === undefined) return 0;
+    return parseFloat(bal);
 }
 
 function getHistory() {
@@ -13,16 +15,19 @@ function getHistory() {
     return hist ? JSON.parse(hist) : [];
 }
 
+// --- Format Rupiah ---
 function formatRupiah(amount) {
     return 'Rp' + amount.toLocaleString('id-ID');
 }
 
+// --- Format Tanggal untuk Label Sumbu X ---
 function formatTanggalLabel(dateString) {
     const date = new Date(dateString);
     const days = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
     return days[date.getDay()];
 }
 
+// --- Format Tanggal untuk Tampilan Riwayat ---
 function formatDateDisplay(dateString) {
     const date = new Date(dateString);
     const now = new Date();
@@ -45,20 +50,30 @@ function formatDateDisplay(dateString) {
 function renderLaporan() {
     const saldo = getBalance();
     const history = getHistory();
+
+    // Ambil total utang dari localStorage
     const debt = localStorage.getItem('mysaku_debt') ? parseFloat(localStorage.getItem('mysaku_debt')) : 0;
     const netBalance = saldo - debt;
 
-    // 1. Saldo & Dompet & Utang
+    // 1. Update Saldo Bersih
     const saldoEl = document.querySelector('.saldo-utama');
-    if (saldoEl) saldoEl.textContent = formatRupiah(netBalance);
+    if (saldoEl) {
+        saldoEl.textContent = formatRupiah(netBalance);
+    }
 
+    // 2. Update Total Dompet
     const dompetEl = document.getElementById('totalDompet');
-    if (dompetEl) dompetEl.textContent = formatRupiah(saldo);
+    if (dompetEl) {
+        dompetEl.textContent = formatRupiah(saldo);
+    }
 
+    // 3. Update Total Utang
     const utangEl = document.getElementById('totalUtang');
-    if (utangEl) utangEl.textContent = formatRupiah(debt);
+    if (utangEl) {
+        utangEl.textContent = formatRupiah(debt);
+    }
 
-    // 2. Preview 3 Transaksi Terbaru
+    // 4. Preview 3 Transaksi Terbaru
     const previewContainer = document.getElementById('previewRiwayatLaporan');
     if (previewContainer) {
         const latest3 = history.slice(0, 3);
@@ -96,9 +111,7 @@ function renderLaporan() {
         }
     }
 
-    // ==========================================
-    // --- 3. GRAFIK STATISTIK (Atas-Bawah per Hari) ---
-    // ==========================================
+    // 5. Grafik Statistik Bulanan (7 Hari)
     const days = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
@@ -141,9 +154,7 @@ function renderLaporan() {
         if (labelExpense) labelExpense.textContent = data.expense > 0 ? `-${formatRupiah(data.expense)}` : 'Rp0';
     });
 
-    // ==========================================
-    // --- 4. ALOKASI KATEGORI (PIE CHART DINAMIS) ---
-    // ==========================================
+    // 6. Alokasi Kategori (Pie Chart Dinamis)
     let catTotals = {};
     let totalExpense = 0;
 
@@ -156,7 +167,6 @@ function renderLaporan() {
         }
     });
 
-    // Update Pie Chart & List Kategori
     const pieChart = document.getElementById('pieChart');
     const catList = document.getElementById('kategoriList');
 
@@ -164,11 +174,9 @@ function renderLaporan() {
         catList.innerHTML = '';
         
         if (totalExpense === 0) {
-            // Jika belum ada pengeluaran
             pieChart.style.background = '#eef3fe';
             catList.innerHTML = `<p class="text-center text-chat-secondary text-sm py-4">Belum ada pengeluaran.</p>`;
         } else {
-            // Palet warna profesional
             const colors = ['#0028B3', '#FF6B35', '#b3c8f0', '#FF4444', '#4CAF50', '#FFC107', '#9C27B0', '#00BCD4'];
             let conicString = '';
             let currentAngle = 0;
@@ -178,11 +186,9 @@ function renderLaporan() {
                 const percent = (total / totalExpense) * 100;
                 const color = colors[i % colors.length];
                 
-                // Susun string untuk CSS conic-gradient
                 conicString += `${color} ${currentAngle.toFixed(1)}% ${(currentAngle + percent).toFixed(1)}%, `;
                 currentAngle += percent;
 
-                // Tambahkan ke list teks
                 catList.innerHTML += `
                     <div class="flex justify-between items-center text-sm py-1">
                         <span class="flex items-center gap-2">
@@ -195,10 +201,7 @@ function renderLaporan() {
                 i++;
             }
 
-            // Hilangkan koma dan spasi di akhir
             conicString = conicString.replace(/, $/, '');
-            
-            // Terapkan ke CSS
             pieChart.style.background = `conic-gradient(${conicString})`;
         }
     }

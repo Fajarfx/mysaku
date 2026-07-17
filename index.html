@@ -99,6 +99,22 @@
   </a>
 </nav>
 
+
+<!-- SALDO AWAL POPUP MODAL -->
+<div id="saldoPopup" class="fixed inset-0 bg-black/50 z-[999] hidden items-center justify-center p-4">
+    <div class="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl relative">
+        <h3 class="text-lg font-bold text-[#1a2236] mb-2 text-center">Atur Saldo Awal</h3>
+        <p class="text-sm text-chat-secondary text-center mb-4">Saldo kamu saat ini negatif. Yuk, set saldo awal dulu!</p>
+        
+        <input type="text" id="saldoPopupInput" placeholder="Contoh: 2jt atau 500rb" class="w-full p-3 border border-[#d6e0f5] rounded-xl text-center text-lg font-semibold mb-4 focus:outline-none focus:border-[#0028B3] bg-[#f8fafd]">
+        
+        <div class="flex gap-3">
+            <button id="saldoPopupCancel" class="flex-1 py-3 bg-gray-100 text-gray-600 rounded-xl font-medium hover:bg-gray-200 transition">Batal</button>
+            <button id="saldoPopupOk" class="flex-1 py-3 bg-[#0028B3] text-white rounded-xl font-medium hover:bg-[#1557b0] transition">OK</button>
+        </div>
+    </div>
+</div>
+
 <!-- Memanggil file JavaScript eksternal -->
 <script src="js/script.js"></script>
 
