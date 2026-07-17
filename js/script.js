@@ -44,7 +44,6 @@ function formatDateLabel(timestamp) {
 function addMessage(text, sender, isImage = false, imageUrl = '', transactionData = null, pairId = null) {
     const now = Date.now();
     const currentDateLabel = formatDateLabel(now);
-    // PASTIKAN pairId digunakan. Jika null, buat baru.
     const uniqueId = pairId || (Date.now() + '-' + Math.random().toString(36).substr(2, 9));
 
     if (lastMessageDate !== currentDateLabel) {
@@ -62,7 +61,7 @@ function addMessage(text, sender, isImage = false, imageUrl = '', transactionDat
     const bubble = document.createElement('div');
     bubble.className = `bubble ${sender}`;
 
-    // Simpan ID yang sama (pairId)
+    // Simpan timestamp & ID unik
     row.dataset.timestamp = now;
     row.dataset.uniqueId = uniqueId;
 
@@ -312,11 +311,10 @@ btnSendPhoto.onclick = () => {
         }
     }
     
-    // --- SATU ID UNTUK USER & BOT ---
     const pairId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
     
     addMessage(caption, 'user', true, imagePreview.src, transactionData, pairId);
-    saveChatMessage(caption, 'user', true, imagePreview.src, transactionData ? transactionData.id : null, pairId);
+    saveChatMessage(caption, 'user', true, imagePreview.src, transactionData ? transactionData.id : null, pairId, transactionData ? transactionData.type : null, transactionData ? transactionData.amount : null);
     
     closeAllMenus();
     setTimeout(() => {
@@ -327,7 +325,7 @@ btnSendPhoto.onclick = () => {
             botReply = getBotResponse(caption);
         }
         addMessage(botReply, 'bot', false, '', null, pairId);
-        saveChatMessage(botReply, 'bot', false, '', null, pairId);
+        saveChatMessage(botReply, 'bot', false, '', null, pairId, null, null);
     }, 1000);
 };
 
@@ -452,7 +450,7 @@ function saveTransactionToHistory(transactionData) {
 // --- SIMPAN & MUAT ULANG CHAT MESSAGES ---
 // ==========================================
 
-function saveChatMessage(text, sender, isImage = false, imageUrl = '', transactionId = null, uniqueId = null) {
+function saveChatMessage(text, sender, isImage = false, imageUrl = '', transactionId = null, uniqueId = null, transactionType = null, transactionAmount = null) {
     let messages = localStorage.getItem('mysaku_chat_messages');
     messages = messages ? JSON.parse(messages) : [];
     
@@ -465,7 +463,9 @@ function saveChatMessage(text, sender, isImage = false, imageUrl = '', transacti
         isImage: isImage,
         imageUrl: imageUrl,
         timestamp: Date.now(),
-        transactionId: transactionId
+        transactionId: transactionId,
+        transactionType: transactionType,
+        transactionAmount: transactionAmount
     });
 
     if (messages.length > 50) messages = messages.slice(-50);
@@ -500,21 +500,18 @@ function loadChatMessages() {
         const bubble = document.createElement('div');
         bubble.className = `bubble ${msg.sender}`;
 
-        // --- PERBAIKAN PENTING DI SINI ---
-        // Simpan timestamp, uniqueId, transactionId, type, dan amount
+        // --- PERBAIKAN PENTING: Simpan semua data ke dataset ---
         row.dataset.timestamp = msg.timestamp;
         row.dataset.uniqueId = msg.uniqueId;
         if (msg.transactionId) {
             row.dataset.transactionId = msg.transactionId;
         }
-        // TAMBAHKAN 2 BARIS INI AGAR EDIT/DELETE BISA ROLLBACK SALDO!
         if (msg.transactionType) {
             row.dataset.type = msg.transactionType;
         }
         if (msg.transactionAmount) {
             row.dataset.amount = msg.transactionAmount;
         }
-        // ------------------------------------
 
         if (msg.isImage && msg.imageUrl) {
             const img = document.createElement('img');
@@ -559,8 +556,6 @@ function loadChatMessages() {
 }
 
 // --- 7. Fungsi Kirim Pesan Utama ---
-// --- 7. Fungsi Kirim Pesan Utama ---
-// --- 7. Fungsi Kirim Pesan Utama ---
 function sendMessage() {
     const text = userInput.value.trim();
     if (text === '') return;
@@ -586,7 +581,7 @@ function sendMessage() {
                 const botReply = `❌ Saldo awal sudah pernah diset dan saldo kamu sudah positif. Gunakan "Terima gaji".`;
                 const pairId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
                 addMessage(botReply, 'bot', false, '', null, pairId);
-                saveChatMessage(botReply, 'bot', false, '', null, pairId);
+                saveChatMessage(botReply, 'bot', false, '', null, pairId, null, null);
             }, 1000);
             return;
         }
@@ -600,7 +595,7 @@ function sendMessage() {
                 const botReply = `❌ Format tidak valid. Contoh: "Saldo awal 2jt"`;
                 const pairId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
                 addMessage(botReply, 'bot', false, '', null, pairId);
-                saveChatMessage(botReply, 'bot', false, '', null, pairId);
+                saveChatMessage(botReply, 'bot', false, '', null, pairId, null, null);
             }, 1000);
             return;
         }
@@ -614,17 +609,16 @@ function sendMessage() {
         const transactionData = { type: 'pemasukan', amount: amount, category: 'Saldo Awal', wallet: 'Kas', rawText: text, date: Date.now() };
         const newId = saveTransactionToHistory(transactionData);
 
-        // --- SATU ID UNTUK USER & BOT ---
         const pairId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
         
         addMessage(text, 'user', false, '', { ...transactionData, id: newId }, pairId);
-        saveChatMessage(text, 'user', false, '', newId, pairId);
+        saveChatMessage(text, 'user', false, '', newId, pairId, transactionData.type, transactionData.amount);
         userInput.value = '';
 
         setTimeout(() => {
             const botReply = `✅ Saldo awal sebesar <b>Rp ${new Intl.NumberFormat('id-ID').format(amount)}</b> berhasil dicatat.`;
             addMessage(botReply, 'bot', false, '', null, pairId);
-            saveChatMessage(botReply, 'bot', false, '', null, pairId);
+            saveChatMessage(botReply, 'bot', false, '', null, pairId, null, null);
         }, 1000);
         return;
     }
@@ -638,7 +632,6 @@ function sendMessage() {
         transactionData = result.data;
         newId = saveTransactionToHistory(transactionData);
 
-        // --- INI LOGIKA KALKULASI SALDO ANDA (TIDAK DIUBAH) ---
         if (transactionData.type === 'pemasukan') {
             currentBalance = (currentBalance || 0) + transactionData.amount;
         } else if (transactionData.type === 'pengeluaran') {
@@ -649,13 +642,13 @@ function sendMessage() {
     
     const pairId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
     addMessage(text, 'user', false, '', { ...transactionData, id: newId }, pairId);
-    saveChatMessage(text, 'user', false, '', newId, pairId);
+    saveChatMessage(text, 'user', false, '', newId, pairId, transactionData ? transactionData.type : null, transactionData ? transactionData.amount : null);
     
     userInput.value = '';
     setTimeout(() => {
         const botReply = getBotResponse(text);
         addMessage(botReply, 'bot', false, '', null, pairId);
-        saveChatMessage(botReply, 'bot', false, '', null, pairId);
+        saveChatMessage(botReply, 'bot', false, '', null, pairId, null, null);
     }, 1000);
 }
 
