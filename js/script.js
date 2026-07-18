@@ -337,6 +337,7 @@ function closeAllMenus() {
 }
 overlay.onclick = closeAllMenus;
 
+
 // --- 6. Logika AI Bot & Parser ---
 function getBotResponse(inputText) {
     const lowerText = inputText.toLowerCase();
@@ -376,21 +377,45 @@ function getBotResponse(inputText) {
         }
     }
 
+    // --- UTANG / BAYAR UTANG (LOGIKA BARU) ---
     if (lowerText.includes('utang') || lowerText.includes('hutang')) {
         const amount = parseAmount(inputText);
-        if (!amount) return `❌ Format tidak valid. Contoh: <i>"Utang ke Andi 200rb"</i>`;
-        
+        if (!amount) return `❌ Format tidak valid. Contoh: <i>"hutang uang ke Andi 200rb"</i>`;
+
         let debt = localStorage.getItem('mysaku_debt') ? parseFloat(localStorage.getItem('mysaku_debt')) : 0;
+
+        // 1. Perintah BAYAR HUTANG (Dompet berkurang, Utang berkurang)
         if (lowerText.includes('bayar utang') || lowerText.includes('bayar hutang')) {
             if (amount > debt) return `❌ Maaf, total utang kamu hanya <b>Rp ${new Intl.NumberFormat('id-ID').format(debt)}</b>.`;
+            
             debt -= amount;
             localStorage.setItem('mysaku_debt', debt.toString());
-            return `✅ Berhasil bayar utang Rp ${new Intl.NumberFormat('id-ID').format(amount)}.<br>💳 Sisa Utang: <b>Rp ${new Intl.NumberFormat('id-ID').format(debt)}</b>`;
-        } else {
+
+            if (currentBalance !== null) {
+                currentBalance = currentBalance - amount;
+                localStorage.setItem('mysaku_balance', currentBalance.toString());
+            }
+
+            return `✅ Berhasil bayar utang <b>Rp ${new Intl.NumberFormat('id-ID').format(amount)}</b>.<br>💳 Sisa Utang: <b>Rp ${new Intl.NumberFormat('id-ID').format(debt)}</b>`;
+        }
+
+        // 2. Perintah HUTANG UANG / PINJAM UANG (Dompet bertambah, Utang bertambah)
+        if (lowerText.includes('hutang uang') || lowerText.includes('pinjam uang') || lowerText.includes('hutang cash')) {
             debt += amount;
             localStorage.setItem('mysaku_debt', debt.toString());
-            return `✅ Berhasil catat utang Rp ${new Intl.NumberFormat('id-ID').format(amount)}.<br>💳 Total Utang: <b>Rp ${new Intl.NumberFormat('id-ID').format(debt)}</b>`;
+
+            if (currentBalance !== null) {
+                currentBalance = currentBalance + amount;
+                localStorage.setItem('mysaku_balance', currentBalance.toString());
+            }
+
+            return `✅ Berhasil mencatat pinjaman uang sebesar <b>Rp ${new Intl.NumberFormat('id-ID').format(amount)}</b>.<br>💳 Total Utang: <b>Rp ${new Intl.NumberFormat('id-ID').format(debt)}</b>`;
         }
+
+        // 3. Perintah HUTANG TAGIHAN / HUTANG BIASA (Dompet tetap, Utang bertambah)
+        debt += amount;
+        localStorage.setItem('mysaku_debt', debt.toString());
+        return `✅ Berhasil mencatat hutang tagihan sebesar <b>Rp ${new Intl.NumberFormat('id-ID').format(amount)}</b>.<br>💳 Total Utang: <b>Rp ${new Intl.NumberFormat('id-ID').format(debt)}</b>`;
     }
 
     // --- LOGIKA PARSER TRANSAKSI ---
@@ -556,6 +581,7 @@ function loadChatMessages() {
 }
 
 // --- 7. Fungsi Kirim Pesan Utama ---
+// --- 7. Fungsi Kirim Pesan Utama ---
 function sendMessage() {
     const text = userInput.value.trim();
     if (text === '') return;
@@ -624,25 +650,40 @@ function sendMessage() {
     }
 
     // --- TRANSAKSI BIASA ---
-    const result = parseTransaction(text);
-    let transactionData = null;
-    let newId = null;
+    if (!lowerText.includes('utang') && !lowerText.includes('hutang')) {
+        const result = parseTransaction(text);
+        let transactionData = null;
+        let newId = null;
 
-    if (result.success) {
-        transactionData = result.data;
-        newId = saveTransactionToHistory(transactionData);
+        if (result.success) {
+            transactionData = result.data;
+            newId = saveTransactionToHistory(transactionData);
 
-        if (transactionData.type === 'pemasukan') {
-            currentBalance = (currentBalance || 0) + transactionData.amount;
-        } else if (transactionData.type === 'pengeluaran') {
-            currentBalance = (currentBalance || 0) - transactionData.amount;
+            if (transactionData.type === 'pemasukan') {
+                currentBalance = (currentBalance || 0) + transactionData.amount;
+            } else if (transactionData.type === 'pengeluaran') {
+                currentBalance = (currentBalance || 0) - transactionData.amount;
+            }
+            localStorage.setItem('mysaku_balance', currentBalance.toString());
         }
-        localStorage.setItem('mysaku_balance', currentBalance.toString());
+        
+        const pairId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+        addMessage(text, 'user', false, '', { ...transactionData, id: newId }, pairId);
+        saveChatMessage(text, 'user', false, '', newId, pairId, transactionData ? transactionData.type : null, transactionData ? transactionData.amount : null);
+        
+        userInput.value = '';
+        setTimeout(() => {
+            const botReply = getBotResponse(text);
+            addMessage(botReply, 'bot', false, '', null, pairId);
+            saveChatMessage(botReply, 'bot', false, '', null, pairId, null, null);
+        }, 1000);
+        return;
     }
-    
+
+    // --- PERINTAH UTANG (TIDAK MEMOTONG SALDO) ---
     const pairId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
-    addMessage(text, 'user', false, '', { ...transactionData, id: newId }, pairId);
-    saveChatMessage(text, 'user', false, '', newId, pairId, transactionData ? transactionData.type : null, transactionData ? transactionData.amount : null);
+    addMessage(text, 'user', false, '', null, pairId);
+    saveChatMessage(text, 'user', false, '', null, pairId, null, null);
     
     userInput.value = '';
     setTimeout(() => {
@@ -650,7 +691,14 @@ function sendMessage() {
         addMessage(botReply, 'bot', false, '', null, pairId);
         saveChatMessage(botReply, 'bot', false, '', null, pairId, null, null);
     }, 1000);
+
+    return; // <--- TAMBAHKAN BARIS INI!
 }
+
+btnSend.onclick = sendMessage;
+userInput.addEventListener('keypress', function (e) {
+    if (e.key === 'Enter') sendMessage();
+});
 
 btnSend.onclick = sendMessage;
 userInput.addEventListener('keypress', function (e) {

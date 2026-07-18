@@ -51,14 +51,13 @@ function renderLaporan() {
     const saldo = getBalance();
     const history = getHistory();
 
-    // Ambil total utang dari localStorage
+    // Ambil total utang dari localStorage (hanya untuk info, tidak dikurangi)
     const debt = localStorage.getItem('mysaku_debt') ? parseFloat(localStorage.getItem('mysaku_debt')) : 0;
-    const netBalance = saldo - debt;
 
-    // 1. Update Saldo Bersih
+    // 1. Update Saldo Bersih (Sekarang SALDO BERSIH = SALDO DOMPET, karena hutang sudah mengubah saldo dompet langsung)
     const saldoEl = document.querySelector('.saldo-utama');
     if (saldoEl) {
-        saldoEl.textContent = formatRupiah(netBalance);
+        saldoEl.textContent = formatRupiah(saldo);
     }
 
     // 2. Update Total Dompet
@@ -67,7 +66,7 @@ function renderLaporan() {
         dompetEl.textContent = formatRupiah(saldo);
     }
 
-    // 3. Update Total Utang
+    // 3. Update Total Utang (Hanya info, tidak memengaruhi Saldo Bersih)
     const utangEl = document.getElementById('totalUtang');
     if (utangEl) {
         utangEl.textContent = formatRupiah(debt);
