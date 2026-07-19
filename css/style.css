@@ -244,3 +244,126 @@ nav{
 /* --- SCROLLBAR --- */
 .chat-area::-webkit-scrollbar { width: 6px; }
 .chat-area::-webkit-scrollbar-thumb { background-color: #ccc; border-radius: 10px; }
+
+
+
+/* ========================================== */
+/* DISABLED INPUT - SAAT MENUNGGU TUTORIAL   */
+/* ========================================== */
+
+.input-wrapper input:disabled {
+    background: #f0f0f0;
+    color: #999;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.input-wrapper input:disabled::placeholder {
+    color: #bbb;
+}
+
+.send-btn:disabled {
+    background: #ccc !important;
+    cursor: not-allowed !important;
+    opacity: 0.5;
+}
+
+
+/* ========================================== */
+/* TOMBOL DI DALAM CHAT BUBBLE               */
+/* ========================================== */
+
+.bubble button {
+    display: inline-block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    padding: 10px 20px !important;
+    background: #0028B3 !important;
+    color: #ffffff !important;
+    border: none !important;
+    border-radius: 9999px !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    cursor: pointer !important;
+    margin: 8px 4px !important;
+    box-shadow: 0 4px 12px rgba(0, 40, 179, 0.3) !important;
+    transition: all 0.2s ease !important;
+    pointer-events: auto !important;
+    z-index: 10 !important;
+    position: relative !important;
+}
+
+.bubble button:hover {
+    background: #1557b0 !important;
+    transform: scale(1.04) !important;
+}
+
+.bubble button.btn-restart-onboarding {
+    background: #f3f4f6 !important;
+    color: #374151 !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08) !important;
+}
+
+.bubble button.btn-restart-onboarding:hover {
+    background: #e5e7eb !important;
+}
+
+.bubble button.btn-start-tutorial {
+    background: #0028B3 !important;
+    color: white !important;
+    padding: 12px 24px !important;
+    font-size: 16px !important;
+}
+
+.bubble button.btn-start-tutorial:hover {
+    background: #1557b0 !important;
+    transform: scale(1.05) !important;
+}
+
+.bubble button.btn-cancel-wallet {
+    background: #e5e7eb !important;
+    color: #374151 !important;
+}
+
+.bubble button.btn-cancel-wallet:hover {
+    background: #d1d5db !important;
+}
+
+.bubble button.btn-tambah-saldo-modal {
+    background: #16a34a !important;
+}
+
+.bubble button.btn-tambah-saldo-modal:hover {
+    background: #15803d !important;
+}
+
+/* Pastikan bubble tidak memotong tombol */
+.bubble {
+    overflow: visible !important;
+    position: relative !important;
+}
+
+.message-wrapper {
+    overflow: visible !important;
+}
+
+/* ========================================== */
+/* DISABLED INPUT - SAAT MENUNGGU TUTORIAL   */
+/* ========================================== */
+
+.input-wrapper input:disabled {
+    background: #f0f0f0 !important;
+    color: #999 !important;
+    cursor: not-allowed !important;
+    opacity: 0.6 !important;
+}
+
+.input-wrapper input:disabled::placeholder {
+    color: #bbb !important;
+}
+
+.send-btn:disabled {
+    background: #ccc !important;
+    cursor: not-allowed !important;
+    opacity: 0.5 !important;
+}

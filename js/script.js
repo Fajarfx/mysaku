@@ -19,7 +19,9 @@ const deleteBtn = document.getElementById('deleteBtn');
 
 let selectedMessageElement = null;
 let lastMessageDate = null;
-let onboardingFinished = false;
+// Catatan: nilai awal onboardingFinished ditentukan di onboarding.js (isOnboardingCompleted()),
+// karena fungsi itu didefinisikan di sana. Di sini cuma default aman kalau onboarding.js belum sempat load.
+let onboardingFinished = (localStorage.getItem('mysaku_onboarding_completed') === 'true');
 
 // ==========================================
 // --- MODUL MULTI-DOMPET --------------------
@@ -433,15 +435,14 @@ function getBotResponse(inputText, walletName) {
         onboardingStep = 0;
         onboardingFinished = false;
         setTimeout(() => startOnboarding(), 300);
-        return `👋 <b>Halo! Aku akan memandu kamu menggunakan MySaku.</b><br><br>
-        Ikuti langkah-langkah di bawah ini. Kamu bisa mengklik tombol yang disediakan atau mengetik contoh perintahnya secara manual.<br><br>
-        <i>Ketik 'lewati' jika ingin langsung menggunakan aplikasi.</i>`;
+        return `👌 Oke, siap-siap ya... <i>(Ketik 'lewati' kapan aja kalau mau langsung pakai aplikasinya.)</i>`;
     }
 
     if (lowerText.includes('lewati') || lowerText.includes('skip')) {
-        onboardingStep = -1;
+        onboardingStep = -999;
         onboardingSkipped = true;
         onboardingFinished = true;
+        markOnboardingCompleted();
         return `✅ Panduan dilewati. Kamu bisa memulai panduan lagi kapan saja dengan mengetik <i>'panduan'</i>.`;
     }
     // --- AKHIR PANDUAN ---
@@ -727,7 +728,7 @@ function sendMessage() {
 
     // --- DETEKSI KEMAJUAN ONBOARDING ---
     // HANYA JALAN JIKA SEDANG DALAM MODE TUTORIAL (step 0,1,2,3)
-    if (onboardingStep === 0 || onboardingStep === 1 || onboardingStep === 2 || onboardingStep === 3) {
+    if (onboardingStep === 0 || onboardingStep === 1 || onboardingStep === 2 || onboardingStep === 3 || onboardingStep === 4) {
         // Pastikan tidak dalam mode skipped atau finished
         if (!onboardingSkipped && !onboardingFinished) {
             console.log('📌 [TUTORIAL] Onboarding step:', onboardingStep, 'Text:', lowerText);
@@ -811,7 +812,7 @@ function sendMessage() {
                         onboardingStep++;
                         stepProcessed = true;
                         isCorrectCommand = true;
-                        console.log('🎉 Onboarding SELESAI! Step 3 → 4 (dompet terdeteksi: ' + resolved + ')');
+                        console.log('➡️ Step 3 → 4 (dompet terdeteksi: ' + resolved + ')');
                         setTimeout(() => {
                             sendOnboardingStep();
                         }, 2000);
@@ -828,8 +829,31 @@ function sendMessage() {
                     }, 1000);
                 }
             }
+            // STEP 4: Catat Utang
+            else if (onboardingStep === 4) {
+                const isCekUtang = lowerText.includes('cek utang') || lowerText.includes('cek hutang') || lowerText.includes('total utang') || lowerText.includes('total hutang');
+                if ((lowerText.includes('utang') || lowerText.includes('hutang')) && !isCekUtang) {
+                    onboardingStep++;
+                    stepProcessed = true;
+                    isCorrectCommand = true;
+                    console.log('🎉 Onboarding SELESAI! Step 4 → 5 (utang tercatat)');
+                    setTimeout(() => {
+                        sendOnboardingStep();
+                    }, 2000);
+                } else {
+                    // Beri tahu user harus mencatat utang
+                    setTimeout(() => {
+                        const pairId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+                        const reminder = `💡 <b>Langkah 5: Catat Utang</b><br><br>
+                        Kamu harus mencatat utang dulu sebelum melanjutkan.<br><br>
+                        Contoh: ketik <i>"hutang ke Andi 100rb"</i>`;
+                        addMessage(reminder, 'bot', false, '', null, pairId);
+                        saveChatMessage(reminder, 'bot', false, '', null, pairId, null, null);
+                    }, 1000);
+                }
+            }
             
-            if (!stepProcessed && !isCorrectCommand && onboardingStep < 4 && onboardingStep >= 0) {
+            if (!stepProcessed && !isCorrectCommand && onboardingStep < 5 && onboardingStep >= 0) {
                 console.log('⏳ [TUTORIAL] Step tidak dikenali, menunggu input yang sesuai.');
             }
         } else {
@@ -930,8 +954,8 @@ function sendMessage() {
         return;
     }
 
-    // --- PERINTAH UTANG ---
-    if (lowerText.includes('utang') || lowerText.includes('hutang')) {
+    // --- PERINTAH UTANG (kecuali "cek utang" / "total utang" -> itu bukan pencatatan, tapi cuma cek nominal) ---
+    if ((lowerText.includes('utang') || lowerText.includes('hutang')) && !lowerText.includes('cek utang') && !lowerText.includes('cek hutang') && !lowerText.includes('total utang') && !lowerText.includes('total hutang')) {
         const amount = parseAmount(text);
 
         if (!amount) {
@@ -1079,11 +1103,17 @@ userInput.addEventListener('keypress', function (e) {
 // --- 8. Inisialisasi Awal ---
 document.addEventListener('DOMContentLoaded', function() {
     loadChatMessages();
-});
 
-if (chatArea.children.length === 0) {
-    addMessage("Halo! Aku Mysaku, asisten keuanganmu. 👋<br><br>Ketik <b>'panduan'</b> jika kamu baru pertama kali menggunakan aplikasi ini, atau <b>'bantuan'</b> untuk melihat daftar perintah.", 'bot');
-}
+    if (chatArea.children.length === 0) {
+        if (!isOnboardingCompleted()) {
+            // Benar-benar user baru & belum pernah menyelesaikan/melewati tutorial -> WAJIB mulai tutorial
+            startOnboarding();
+        } else {
+            // Sudah pernah selesai/lewati sebelumnya, tapi entah kenapa histori chat kosong (mis. dibersihkan manual)
+            addMessage("Halo! Aku Mysaku, asisten keuanganmu. 👋<br><br>Ketik <b>'bantuan'</b> untuk melihat daftar perintah.", 'bot');
+        }
+    }
+});
 
 // ==========================================
 // --- MODUL PARSER KEUANGAN ---
@@ -1252,7 +1282,7 @@ popupOk.onclick = () => {
     popup.classList.remove('flex');
 
     // CEK APAKAH SEDANG DALAM MODE TUTORIAL
-    const isTutorialMode = !onboardingSkipped && !onboardingFinished && (onboardingStep === 0 || onboardingStep === 1 || onboardingStep === 2 || onboardingStep === 3);
+    const isTutorialMode = !onboardingSkipped && !onboardingFinished && (onboardingStep === 0 || onboardingStep === 1 || onboardingStep === 2 || onboardingStep === 3 || onboardingStep === 4);
     
     if (isTutorialMode) {
         // Mode tutorial - kirim sebagai perintah tutorial

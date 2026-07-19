@@ -2,9 +2,20 @@
 // --- ONBOARDING MODULE (PANDUAN USER) ------
 // ==========================================
 
-// State untuk melacak langkah panduan
-let onboardingStep = 0;
-let onboardingSkipped = false;
+// Flag PERMANEN: true kalau user sudah pernah menyelesaikan (atau melewati) tutorial.
+// Begitu true, tutorial TIDAK PERNAH otomatis muncul lagi di kunjungan berikutnya.
+function isOnboardingCompleted() {
+    return localStorage.getItem('mysaku_onboarding_completed') === 'true';
+}
+function markOnboardingCompleted() {
+    localStorage.setItem('mysaku_onboarding_completed', 'true');
+}
+
+// State untuk melacak langkah panduan.
+// Kalau user BELUM PERNAH menyelesaikan tutorial -> mulai dari step 0 (WAJIB jalan).
+// Kalau SUDAH PERNAH selesai -> langsung nonaktif (-999), tidak akan pernah otomatis muncul lagi.
+let onboardingStep = isOnboardingCompleted() ? -999 : 0;
+let onboardingSkipped = isOnboardingCompleted();
 
 const ONBOARDING_STEPS = [
     {
@@ -37,6 +48,14 @@ const ONBOARDING_STEPS = [
         example: "Contoh: ketik <i>'gaji 5jt ke bca'</i> atau ganti dompet di halaman Laporan.",
         buttonText: "🔄 Lihat Dompet",
         buttonAction: "btn-onboarding-wallet",
+        hasButton: false
+    },
+    {
+        title: "Langkah 5: Catat Utang & Piutang",
+        desc: "Mysaku juga bisa mencatat utang kamu ke orang lain. Kalau utangnya sudah dibayar, saldo dompet kamu otomatis berkurang dan catatan utang berkurang juga.",
+        example: "Contoh: ketik <i>'hutang ke Andi 100rb'</i> untuk mencatat utang baru. (Nanti kalau mau melunasi, tinggal ketik <i>'bayar hutang 100rb'</i>).",
+        buttonText: "",
+        buttonAction: "",
         hasButton: false
     }
 ];
@@ -97,7 +116,18 @@ function startOnboarding() {
     lastMessageDate = null;
     
     console.log('📊 Status onboarding: step=' + onboardingStep + ', skipped=' + onboardingSkipped + ', finished=' + onboardingFinished);
-    sendOnboardingStep();
+
+    // --- SAMBUTAN DULU, BARU MASUK LANGKAH 1 ---
+    const welcomePairId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+    const welcomeText = `👋 <b>Halo! Selamat datang di Mysaku.</b><br><br>
+    Aku asisten keuangan kamu — nyatat pemasukan, pengeluaran, sampai utang, cukup lewat chat kayak gini.<br><br>
+    Sebelum mulai, yuk aku pandu dulu cara pakainya, sebentar aja kok. Ikuti langkah-langkahnya ya! 😊`;
+    addMessage(welcomeText, 'bot', false, '', null, welcomePairId);
+    saveChatMessage(welcomeText, 'bot', false, '', null, welcomePairId, null, null);
+
+    setTimeout(() => {
+        sendOnboardingStep();
+    }, 1500);
 }
 
 // Fungsi untuk mengirim langkah panduan berikutnya
@@ -145,10 +175,13 @@ document.addEventListener('click', function(e) {
     if (startBtn) {
         e.stopPropagation();
         console.log('🚀 User memilih "Mulai Menggunakan" - Reset semua data!');
-        
-        // Reset semua data
+
+        // Reset semua data praktik/latihan selama tutorial
         resetAllData();
-        
+
+        // Tandai PERMANEN bahwa tutorial sudah selesai -> tidak akan pernah otomatis muncul lagi
+        markOnboardingCompleted();
+
         // Kirim pesan sambutan
         setTimeout(() => {
             addMessage("Halo! Aku Mysaku, asisten keuanganmu. 👋<br><br>Ketik <b>'bantuan'</b> untuk melihat daftar perintah.", 'bot');
