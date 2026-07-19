@@ -28,22 +28,56 @@
 
   <main class="pt-20 pb-28 px-4 max-w-lg mx-auto space-y-4">
 
-    <!-- Card 1: Saldo Bersih -->
-    <div class="chat-card-accent p-5 relative overflow-hidden">
-      <div class="flex justify-between items-start">
-        <div>
-          <p class="text-xs text-[#4a6a9a] uppercase tracking-wider mb-1">Saldo Bersih</p>
-          <!-- Card 1: Saldo Bersih -->
+<!-- Card 1: Saldo Bersih & Pilihan Dompet -->
+<div class="chat-card-accent p-5 relative overflow-hidden">
+    <div class="flex justify-between items-start">
+        <div class="flex-1">
+            <div class="flex items-center gap-2 mb-1">
+<p class="text-xs text-[#4a6a9a] uppercase tracking-wider flex items-center gap-2">
+    <span id="activeWalletLabel">Dompet Cash</span>
+    <!-- Tambahkan tombol di bawah ini (hapus komentar <!-- ... --> 
+    <button id="walletSelectorBtn" class="bg-white/80 hover:bg-white border border-[#b3c8f0] rounded-full px-2 py-0.5 transition shadow-sm flex items-center gap-1 text-[#0028B3]">
+        <span class="material-symbols-outlined text-[16px]">swap_horiz</span>
+        <span class="text-[10px] font-semibold">Ganti</span>
+    </button>
+</p>
+            </div>
+            <!-- Saldo Dompet Aktif -->
             <h2 class="text-3xl font-bold text-[#1a2236] saldo-utama">Rp0</h2>
-
         </div>
         <span class="chat-badge flex items-center gap-1">
-          <span class="material-symbols-outlined text-[14px]">trending_up</span>
-          +12% bulan ini
+            <span class="material-symbols-outlined text-[14px]">trending_up</span>
+            +12% bulan ini
         </span>
-      </div>
-      <div class="absolute -right-8 -bottom-8 w-32 h-32 bg-[#0028B3]/10 rounded-full blur-3xl"></div>
     </div>
+    <div class="absolute -right-8 -bottom-8 w-32 h-32 bg-[#0028B3]/10 rounded-full blur-3xl"></div>
+</div>
+
+<!-- TAMBAHKAN INI DI BAGIAN PALING BAWAH `pages/laporan.html` (SEBELUM PENUTUP `</main>`) -->
+<!-- MODAL PILIH DOMPET (BOTTOM SHEET) -->
+<div id="walletModal" class="fixed inset-0 bg-black/40 z-[999] hidden items-end justify-center">
+    <div class="bg-white w-full max-w-[400px] rounded-t-2xl p-6 pb-8 transform transition-transform duration-300 translate-y-full" id="walletModalContent">
+        <div class="w-12 h-1 bg-gray-300 rounded-full mx-auto mb-4"></div>
+        <h3 class="text-lg font-bold text-[#1a2236] mb-4 text-center">Pilih Dompet Aktif</h3>
+        <div id="walletListContainer" class="space-y-2 max-h-[300px] overflow-y-auto">
+            <!-- Akan diisi oleh JavaScript -->
+        </div>
+        <button id="closeWalletModal" class="mt-4 w-full py-3 bg-gray-100 text-gray-600 rounded-xl font-medium hover:bg-gray-200 transition">Tutup</button>
+    </div>
+</div>
+
+<!-- TAMBAHKAN DI BAWAH CARD TERAKHIR (SEBELUM PENUTUP MAIN) -->
+<!-- BOTTOM SHEET PILIH DOMPET -->
+<div id="walletBottomSheet" class="fixed inset-0 bg-black/50 z-[999] hidden items-end justify-center">
+    <div class="bg-white rounded-t-2xl w-full max-w-[400px] p-6 pb-8 transform transition-transform duration-300 translate-y-full" id="walletSheetContent">
+        <div class="w-12 h-1 bg-gray-300 rounded-full mx-auto mb-4"></div>
+        <h3 class="text-lg font-bold text-[#1a2236] mb-4 text-center">Pilih Dompet</h3>
+        <div id="walletListSheet" class="space-y-2 max-h-[300px] overflow-y-auto">
+            <!-- Akan diisi oleh JavaScript -->
+        </div>
+        <button id="closeWalletSheet" class="mt-4 w-full py-3 bg-gray-100 text-gray-600 rounded-xl font-medium hover:bg-gray-200 transition">Tutup</button>
+    </div>
+</div>
 
 
 <!-- Card 2: Dompet & Utang -->

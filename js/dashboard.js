@@ -2,12 +2,29 @@
 // --- DASHBOARD LOGIC REAL-TIME (FINAL) ---
 // ==========================================
 
+// --- Daftar Dompet yang Tersedia ---
+const WALLETS = ['Cash', 'BCA', 'DANA', 'GoPay', 'OVO', 'Mandiri'];
+
 // --- Fungsi Baca Data ---
-function getBalance() {
-    const bal = localStorage.getItem('mysaku_balance');
-    // Jika null atau undefined, jadikan 0
-    if (bal === null || bal === undefined) return 0;
-    return parseFloat(bal);
+function getActiveWallet() {
+    return localStorage.getItem('mysaku_active_wallet') || 'Cash';
+}
+
+function getWalletBalance(walletName) {
+    if (walletName === 'Cash') {
+        return parseFloat(localStorage.getItem('mysaku_balance') || 0);
+    }
+    const key = 'mysaku_wallet_' + walletName;
+    const val = localStorage.getItem(key);
+    return val ? parseFloat(val) : 0;
+}
+
+function getTotalAllWallets() {
+    let total = 0;
+    WALLETS.forEach(w => {
+        total += getWalletBalance(w);
+    });
+    return total;
 }
 
 function getHistory() {
@@ -15,19 +32,16 @@ function getHistory() {
     return hist ? JSON.parse(hist) : [];
 }
 
-// --- Format Rupiah ---
 function formatRupiah(amount) {
     return 'Rp' + amount.toLocaleString('id-ID');
 }
 
-// --- Format Tanggal untuk Label Sumbu X ---
 function formatTanggalLabel(dateString) {
     const date = new Date(dateString);
     const days = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
     return days[date.getDay()];
 }
 
-// --- Format Tanggal untuk Tampilan Riwayat ---
 function formatDateDisplay(dateString) {
     const date = new Date(dateString);
     const now = new Date();
@@ -48,29 +62,90 @@ function formatDateDisplay(dateString) {
 // ==========================================
 
 function renderLaporan() {
-    const saldo = getBalance();
+    const activeWallet = getActiveWallet();
+    const saldo = getWalletBalance(activeWallet);
+    const totalDompet = getTotalAllWallets();
     const history = getHistory();
 
-    // Ambil total utang dari localStorage (hanya untuk info, tidak dikurangi)
     const debt = localStorage.getItem('mysaku_debt') ? parseFloat(localStorage.getItem('mysaku_debt')) : 0;
 
-    // 1. Update Saldo Bersih (Sekarang SALDO BERSIH = SALDO DOMPET, karena hutang sudah mengubah saldo dompet langsung)
+    // 1. Update Label & Saldo Dompet Aktif
+    const labelEl = document.getElementById('activeWalletLabel');
+    if (labelEl) labelEl.textContent = 'Dompet ' + activeWallet;
+
     const saldoEl = document.querySelector('.saldo-utama');
-    if (saldoEl) {
-        saldoEl.textContent = formatRupiah(saldo);
-    }
+    if (saldoEl) saldoEl.textContent = formatRupiah(saldo);
 
-    // 2. Update Total Dompet
+    // 2. Update Total Dompet & Utang
     const dompetEl = document.getElementById('totalDompet');
-    if (dompetEl) {
-        dompetEl.textContent = formatRupiah(saldo);
-    }
+    if (dompetEl) dompetEl.textContent = formatRupiah(totalDompet);
 
-    // 3. Update Total Utang (Hanya info, tidak memengaruhi Saldo Bersih)
     const utangEl = document.getElementById('totalUtang');
-    if (utangEl) {
-        utangEl.textContent = formatRupiah(debt);
-    }
+    if (utangEl) utangEl.textContent = formatRupiah(debt);
+
+ // 3. Render Bottom Sheet Daftar Dompet
+const walletList = document.getElementById('walletListContainer');
+const modalBtn = document.getElementById('walletSelectorBtn');
+const modal = document.getElementById('walletModal');
+const modalContent = document.getElementById('walletModalContent');
+const closeBtn = document.getElementById('closeWalletModal');
+
+if (modalBtn && modal) {
+    // Buka modal
+    modalBtn.onclick = () => {
+        // Render daftar dompet
+        walletList.innerHTML = '';
+        WALLETS.forEach(w => {
+            const balance = getWalletBalance(w);
+            const item = document.createElement('button');
+            item.className = `w-full px-4 py-3 rounded-xl text-left flex justify-between items-center transition hover:bg-[#f0f4fe] ${w === activeWallet ? 'bg-[#e6edfb] text-[#0028B3] font-semibold border border-[#b3c8f0]' : 'bg-white text-[#1a2236] border border-transparent'}`;
+            item.innerHTML = `
+                <span class="flex items-center gap-2">
+                    ${w === activeWallet ? '<span class="material-symbols-outlined text-[#0028B3] text-[18px]">check_circle</span>' : ''}
+                    ${w}
+                </span>
+                <span class="text-chat-secondary">${formatRupiah(balance)}</span>
+            `;
+            item.onclick = () => {
+                localStorage.setItem('mysaku_active_wallet', w);
+                modalContent.classList.remove('translate-y-0');
+                modalContent.classList.add('translate-y-full');
+                setTimeout(() => {
+                    modal.classList.add('hidden');
+                }, 300);
+                renderLaporan();
+            };
+            walletList.appendChild(item);
+        });
+
+        // Tampilkan modal dengan animasi
+        modal.classList.remove('hidden');
+        setTimeout(() => {
+            modalContent.classList.remove('translate-y-full');
+            modalContent.classList.add('translate-y-0');
+        }, 10);
+    };
+
+    // Tutup modal
+    closeBtn.onclick = () => {
+        modalContent.classList.remove('translate-y-0');
+        modalContent.classList.add('translate-y-full');
+        setTimeout(() => {
+            modal.classList.add('hidden');
+        }, 300);
+    };
+
+    // Klik di luar area modal
+    modal.onclick = (e) => {
+        if (e.target === modal) {
+            modalContent.classList.remove('translate-y-0');
+            modalContent.classList.add('translate-y-full');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 300);
+        }
+    };
+}
 
     // 4. Preview 3 Transaksi Terbaru
     const previewContainer = document.getElementById('previewRiwayatLaporan');
@@ -101,7 +176,7 @@ function renderLaporan() {
                         </div>
                         <div class="text-right flex-shrink-0">
                             <p class="text-sm font-semibold ${nominalColor}">${nominalStr}</p>
-                            <p class="text-xs text-chat-secondary">${item.wallet || 'Kas'}</p>
+                            <p class="text-xs text-chat-secondary">${item.wallet || 'Cash'}</p>
                         </div>
                     </div>
                 `;
@@ -261,7 +336,7 @@ function renderRiwayat() {
                 </div>
                 <div class="text-right flex-shrink-0">
                     <p class="text-sm font-semibold ${nominalColor}">${nominalStr}</p>
-                    <p class="text-xs text-chat-secondary">${item.wallet || 'Kas'}</p>
+                    <p class="text-xs text-chat-secondary">${item.wallet || 'Cash'}</p>
                 </div>
             </div>
         `;

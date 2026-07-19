@@ -56,19 +56,6 @@ function setWalletBalance(walletName, newBalance) {
     localStorage.setItem(key, newBalance.toString());
 }
 
-// Cek apakah dompet ini SUDAH PERNAH diatur saldo awalnya (beda dengan saldo = 0)
-function isWalletInitialized(walletName) {
-    const key = walletName === 'Cash' ? 'mysaku_balance' : 'mysaku_wallet_' + walletName;
-    return localStorage.getItem(key) !== null;
-}
-
-// Cocokkan nama dompet yang diketik user (tidak peduli huruf besar/kecil) ke nama resmi di WALLETS
-function resolveWalletName(rawName) {
-    if (!rawName) return null;
-    const found = WALLETS.find(w => w.toLowerCase() === rawName.toLowerCase());
-    return found || null;
-}
-
 // --- 2. Fungsi Dasar Chat ---
 function formatTime(timestamp) {
     const date = new Date(timestamp);
@@ -156,35 +143,11 @@ function addMessage(text, sender, isImage = false, imageUrl = '', transactionDat
         if (btn) {
             btn.onclick = (e) => {
                 e.stopPropagation();
-                saldoPopupMode = 'awal';
                 document.getElementById('saldoPopup').classList.remove('hidden');
                 document.getElementById('saldoPopup').classList.add('flex');
                 setTimeout(() => {
                     document.getElementById('saldoPopupInput').focus();
                 }, 100);
-            };
-        }
-    }
-    if (sender === 'bot' && text && text.includes('btn-tambah-saldo-modal')) {
-        const tambahBtn = row.querySelector('.btn-tambah-saldo-modal');
-        if (tambahBtn) {
-            tambahBtn.onclick = (e) => {
-                e.stopPropagation();
-                saldoPopupMode = 'tambah';
-                document.getElementById('saldoPopup').classList.remove('hidden');
-                document.getElementById('saldoPopup').classList.add('flex');
-                setTimeout(() => {
-                    document.getElementById('saldoPopupInput').focus();
-                }, 100);
-            };
-        }
-    }
-    if (sender === 'bot' && text && text.includes('btn-cancel-wallet')) {
-        const cancelBtn = row.querySelector('.btn-cancel-wallet');
-        if (cancelBtn) {
-            cancelBtn.onclick = (e) => {
-                e.stopPropagation();
-                bubble.innerHTML = '↩️ Transaksi dibatalkan.';
             };
         }
     }
@@ -426,18 +389,17 @@ function closeAllMenus() {
 overlay.onclick = closeAllMenus;
 
 // --- 6. Logika AI Bot & Parser ---
-function getBotResponse(inputText, walletName) {
+function getBotResponse(inputText) {
     const lowerText = inputText.toLowerCase();
     
     if (lowerText.includes('bantuan') || lowerText.includes('help') || lowerText.includes('menu') || lowerText.includes('panduan')) {
         return `<b>📖 Panduan Menggunakan Mysaku</b><br><br>
         <b>1. 💰 Mencatat Saldo Awal</b><br><i>Contoh:</i> "Saldo awal 2jt"<br>
-        <b>2. ➕ Tambah Saldo</b><br><i>Contoh:</i> "Tambah saldo 500rb"<br>
-        <b>3. 📈 Mencatat Pemasukan</b><br><i>Contoh:</i> "Gaji 3jt"<br>
-        <b>4. 📉 Mencatat Pengeluaran</b><br><i>Contoh:</i> "Beli nasi 20rb"<br>
-        <b>5. 💳 Menentukan Dompet</b><br><i>Contoh:</i> "Bayar bensin 50rb pakai bca"<br>
-        <b>6. 💵 Cek Saldo</b><br><i>Ketik:</i> "Cek saldo"<br>
-        <b>7. 💰 Cek Utang</b><br><i>Ketik:</i> "Cek utang"<br>
+        <b>2. 📈 Mencatat Pemasukan</b><br><i>Contoh:</i> "Gaji 3jt"<br>
+        <b>3. 📉 Mencatat Pengeluaran</b><br><i>Contoh:</i> "Beli nasi 20rb"<br>
+        <b>4. 💳 Menentukan Dompet</b><br><i>Contoh:</i> "Bayar bensin 50rb pakai bca"<br>
+        <b>5. 💵 Cek Saldo</b><br><i>Ketik:</i> "Cek saldo"<br>
+        <b>6. 💰 Cek Utang</b><br><i>Ketik:</i> "Cek utang"<br>
         <hr><i>💡 Tip: Gunakan 20rb, 2.5jt, Rp 50.000</i>`;
     }
 
@@ -498,24 +460,22 @@ if (!result.success) return result.message;
 const d = result.data;
 const formattedAmount = new Intl.NumberFormat('id-ID').format(d.amount);
 const typeLabel = d.type === 'pemasukan' ? '📈 Pemasukan' : '📉 Pengeluaran';
-const walletForDisplay = walletName || getActiveWallet(); // Dompet TUJUAN transaksi, bukan sekadar dompet aktif
-const walletBal = getWalletBalance(walletForDisplay);
-const walletWasInitialized = isWalletInitialized(walletForDisplay);
+const activeWallet = getActiveWallet(); // Ambil dompet aktif
 
 // Tampilkan nama dompet saja (tanpa emoji)
-let responseText = `✅ Berhasil mencatat ${d.type}!<br>📌 <b>${typeLabel}</b><br>💰 Rp ${formattedAmount}<br>📂 ${d.category}<br>💳 ${walletForDisplay}`;
+let responseText = `✅ Berhasil mencatat ${d.type}!<br>📌 <b>${typeLabel}</b><br>💰 Rp ${formattedAmount}<br>📂 ${d.category}<br>💳 ${activeWallet}`;
 
-    if (!walletWasInitialized) {
+    if (currentBalance === null) {
         if (d.type === 'pengeluaran') {
-            responseText += `<br><br>⚠️ <b>Saldo dompet ${walletForDisplay} belum diatur!</b><br>Saat ini saldo kamu negatif: <b>Rp ${new Intl.NumberFormat('id-ID').format(-d.amount)}</b>`;
+            responseText += `<br><br>⚠️ <b>Saldo dompet ${activeWallet} belum diatur!</b><br>Saat ini saldo kamu negatif: <b>Rp ${new Intl.NumberFormat('id-ID').format(-d.amount)}</b>`;
             responseText += `<br><br><i>Untuk melanjutkan, atur saldo awal kamu sekarang.</i><br><br>`;
             responseText += `<button class="btn-set-saldo-modal px-6 py-2 bg-[#0028B3] text-white rounded-full text-sm font-medium shadow-md">Atur Saldo Awal</button>`;
         }
     } 
-    else if (walletBal < 0) {
+    else if (currentBalance !== null && currentBalance < 0) {
         if (d.type === 'pengeluaran') {
             return `⛔ <b>Transaksi sementara dibatasi.</b><br><br>
-            Saldo dompet <b>${walletForDisplay}</b> negatif: <b>Rp ${new Intl.NumberFormat('id-ID').format(walletBal)}</b>.<br><br>
+            Saldo dompet <b>${activeWallet}</b> negatif: <b>Rp ${new Intl.NumberFormat('id-ID').format(currentBalance)}</b>.<br><br>
             <i>Yuk, atur saldo awal dompet ini dulu!</i><br><br>
             <button class="btn-set-saldo-modal px-6 py-2 bg-[#0028B3] text-white rounded-full text-sm font-medium shadow-md">Atur Saldo Awal</button>
             <br><br>
@@ -526,7 +486,7 @@ let responseText = `✅ Berhasil mencatat ${d.type}!<br>📌 <b>${typeLabel}</b>
         responseText += `
 <br><br>
 <i class="fa-solid fa-wallet" style="color:#16a34a; margin-right:6px;"></i>
-Sisa Saldo Dompet <b>${walletForDisplay}</b>: <b>Rp ${new Intl.NumberFormat('id-ID').format(walletBal)}</b>`;
+Sisa Saldo Dompet <b>${activeWallet}</b>: <b>Rp ${new Intl.NumberFormat('id-ID').format(currentBalance)}</b>`;
     }
     return responseText;
 }
@@ -652,35 +612,11 @@ function loadChatMessages() {
             if (btn) {
                 btn.onclick = (e) => {
                     e.stopPropagation();
-                    saldoPopupMode = 'awal';
                     document.getElementById('saldoPopup').classList.remove('hidden');
                     document.getElementById('saldoPopup').classList.add('flex');
                     setTimeout(() => {
                         document.getElementById('saldoPopupInput').focus();
                     }, 100);
-                };
-            }
-        }
-        if (msg.sender === 'bot' && msg.text && msg.text.includes('btn-tambah-saldo-modal')) {
-            const tambahBtn = row.querySelector('.btn-tambah-saldo-modal');
-            if (tambahBtn) {
-                tambahBtn.onclick = (e) => {
-                    e.stopPropagation();
-                    saldoPopupMode = 'tambah';
-                    document.getElementById('saldoPopup').classList.remove('hidden');
-                    document.getElementById('saldoPopup').classList.add('flex');
-                    setTimeout(() => {
-                        document.getElementById('saldoPopupInput').focus();
-                    }, 100);
-                };
-            }
-        }
-        if (msg.sender === 'bot' && msg.text && msg.text.includes('btn-cancel-wallet')) {
-            const cancelBtn = row.querySelector('.btn-cancel-wallet');
-            if (cancelBtn) {
-                cancelBtn.onclick = (e) => {
-                    e.stopPropagation();
-                    bubble.innerHTML = '↩️ Transaksi dibatalkan.';
                 };
             }
         }
@@ -688,6 +624,7 @@ function loadChatMessages() {
     chatArea.scrollTop = chatArea.scrollHeight;
 }
 
+// --- 7. Fungsi Kirim Pesan Utama ---
 // --- 7. Fungsi Kirim Pesan Utama ---
 function sendMessage() {
     const text = userInput.value.trim();
@@ -702,64 +639,30 @@ function sendMessage() {
     const lowerText = text.toLowerCase();
 
     // --- DETEKSI DOMPET TUJUAN ---
-    // Jika user menyebut dompet ("pakai/ke/via <dompet>"), transaksi masuk/keluar dari dompet itu.
-    // Kalau tidak disebutkan, pakai dompet yang sedang aktif.
     let targetWallet = getActiveWallet();
     const walletMatch = text.match(/\s(?:pakai|ke|via)\s+(\w+)/i);
-    if (walletMatch) {
-        const resolved = resolveWalletName(walletMatch[1]);
-        if (resolved) targetWallet = resolved;
+    if (walletMatch && WALLETS.includes(walletMatch[1])) {
+        targetWallet = walletMatch[1];
     }
 
-    // --- TAMBAH SALDO (bisa dipakai kapan saja, tidak peduli dompet sudah pernah diatur atau belum) ---
-    if (lowerText.includes('tambah saldo')) {
-        const amount = parseAmount(text);
-        if (!amount) {
-            addMessage(text, 'user', false, '', null);
-            saveChatMessage(text, 'user', false, '');
-            userInput.value = '';
-            setTimeout(() => {
-                const botReply = `❌ Format tidak valid. Contoh: "Tambah saldo 500rb"`;
-                const pairId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
-                addMessage(botReply, 'bot', false, '', null, pairId);
-                saveChatMessage(botReply, 'bot', false, '', null, pairId, null, null);
-            }, 1000);
-            return;
-        }
-
-        const walletBalBefore = getWalletBalance(targetWallet);
-        const newBalance = walletBalBefore + amount;
-        setWalletBalance(targetWallet, newBalance);
-        currentBalance = getWalletBalance(getActiveWallet());
-
-        const transactionData = { type: 'pemasukan', amount: amount, category: 'Tambah Saldo', wallet: targetWallet, rawText: text, date: Date.now() };
-        const newId = saveTransactionToHistory(transactionData);
-
-        const pairId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
-        addMessage(text, 'user', false, '', { ...transactionData, id: newId }, pairId);
-        saveChatMessage(text, 'user', false, '', newId, pairId, transactionData.type, transactionData.amount);
-        userInput.value = '';
-
-        setTimeout(() => {
-            const botReply = `✅ Berhasil menambah saldo <b>Rp ${new Intl.NumberFormat('id-ID').format(amount)}</b> ke dompet <b>${targetWallet}</b>.<br>💰 Saldo sekarang: <b>Rp ${new Intl.NumberFormat('id-ID').format(newBalance)}</b>`;
-            addMessage(botReply, 'bot', false, '', null, pairId);
-            saveChatMessage(botReply, 'bot', false, '', null, pairId, null, null);
-        }, 1000);
+    // --- CEK BLOKIRAN SALDO NEGATIF ---
+    const isBlocked = (currentBalance !== null && currentBalance < 0);
+    const isExpense = lowerText.includes('beli') || lowerText.includes('bayar') || lowerText.includes('makan') || lowerText.includes('transport') || lowerText.includes('tagihan') || lowerText.includes('bensin') || lowerText.includes('-');
+    
+    if (isBlocked && isExpense && !lowerText.includes('saldo awal') && !lowerText.includes('set saldo')) {
+        alert(`⛔ Transaksi ditolak!\nSaldo dompet aktif masih negatif: Rp ${new Intl.NumberFormat('id-ID').format(currentBalance)}\n\nSilakan atur saldo awal terlebih dahulu.`);
         return;
     }
 
-    // --- SALDO AWAL (per dompet, bukan berdasarkan variabel global) ---
+    // --- SALDO AWAL ---
     if (lowerText.includes('saldo awal') || lowerText.includes('set saldo')) {
-        const walletBalBefore = getWalletBalance(targetWallet);
-        const walletInitialized = isWalletInitialized(targetWallet);
-        const isFirstTimeSetup = (!walletInitialized || walletBalBefore < 0);
-
+        const isFirstTimeSetup = (currentBalance === null || currentBalance < 0);
         if (!isFirstTimeSetup) {
             addMessage(text, 'user', false, '', null);
             saveChatMessage(text, 'user', false, '');
             userInput.value = '';
             setTimeout(() => {
-                const botReply = `❌ Saldo dompet <b>${targetWallet}</b> sudah pernah diset dan saldo sudah positif. Gunakan <i>"tambah saldo [nominal]"</i> untuk menambah saldo.`;
+                const botReply = `❌ Saldo awal sudah pernah diset dan saldo kamu sudah positif. Gunakan "Terima gaji".`;
                 const pairId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
                 addMessage(botReply, 'bot', false, '', null, pairId);
                 saveChatMessage(botReply, 'bot', false, '', null, pairId, null, null);
@@ -781,9 +684,8 @@ function sendMessage() {
             return;
         }
 
-        const newBalance = walletBalBefore + amount;
-        setWalletBalance(targetWallet, newBalance);
-        currentBalance = getWalletBalance(getActiveWallet());
+        if (currentBalance === null) updateBalance(amount);
+        else updateBalance(currentBalance + amount);
 
         const transactionData = { type: 'pemasukan', amount: amount, category: 'Saldo Awal', wallet: targetWallet, rawText: text, date: Date.now() };
         const newId = saveTransactionToHistory(transactionData);
@@ -794,152 +696,73 @@ function sendMessage() {
         userInput.value = '';
 
         setTimeout(() => {
-            const botReply = `✅ Saldo awal <b>Rp ${new Intl.NumberFormat('id-ID').format(amount)}</b> berhasil diatur untuk dompet <b>${targetWallet}</b>.<br>💰 Saldo sekarang: <b>Rp ${new Intl.NumberFormat('id-ID').format(newBalance)}</b>`;
+            const botReply = `✅ Saldo awal <b>Rp ${new Intl.NumberFormat('id-ID').format(amount)}</b> untuk dompet <b>${targetWallet}</b>.`;
             addMessage(botReply, 'bot', false, '', null, pairId);
             saveChatMessage(botReply, 'bot', false, '', null, pairId, null, null);
         }, 1000);
         return;
     }
 
-    // --- PERINTAH UTANG (termasuk cek saldo kurang saat bayar utang) ---
-    if (lowerText.includes('utang') || lowerText.includes('hutang')) {
-        const amount = parseAmount(text);
+    // --- TRANSAKSI BIASA ---
+    if (!lowerText.includes('utang') && !lowerText.includes('hutang')) {
+        const result = parseTransaction(text);
+        let transactionData = null;
 
-        if (!amount) {
-            const pairId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
-            addMessage(text, 'user', false, '', null, pairId);
-            saveChatMessage(text, 'user', false, '', null, pairId, null, null);
-            userInput.value = '';
-            setTimeout(() => {
-                const botReply = `❌ Format tidak valid. Contoh: <i>"hutang ke Andi 200rb"</i>`;
+        if (result.success) {
+            transactionData = result.data;
+            transactionData.wallet = targetWallet;
+
+            const currentBal = getWalletBalance(targetWallet);
+
+            // --- CEK SALDO KURANG (Saldo > 0, tapi kurang) ---
+            if (transactionData.type === 'pengeluaran' && currentBal > 0 && currentBal < transactionData.amount) {
+                // KIRIM PESAN BOT LANGSUNG (TANPA MENYIMPAN TRANSAKSI)
+                const pairId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+                const botReply = `❌ <b>Saldo dompet "${targetWallet}" tidak mencukupi!</b><br><br>
+                💳 Total Saldo: <b>Rp ${new Intl.NumberFormat('id-ID').format(currentBal)}</b><br>
+                💰 Dibutuhkan: <b>Rp ${new Intl.NumberFormat('id-ID').format(transactionData.amount)}</b><br><br>
+                <button class="btn-set-saldo-modal px-6 py-2 bg-[#0028B3] text-white rounded-full text-sm font-medium shadow-md">➕ Tambah Saldo</button>
+                <button class="btn-cancel-wallet px-4 py-2 bg-gray-200 text-gray-700 rounded-full text-sm shadow-md ml-2">✖ Batal</button>`;
                 addMessage(botReply, 'bot', false, '', null, pairId);
                 saveChatMessage(botReply, 'bot', false, '', null, pairId, null, null);
-            }, 1000);
-            return;
-        }
-
-        const isBayarUtang = lowerText.includes('bayar utang') || lowerText.includes('bayar hutang');
-
-        if (isBayarUtang) {
-            const debtNow = currentDebt;
-
-            if (amount > debtNow) {
-                const pairId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
-                addMessage(text, 'user', false, '', null, pairId);
-                saveChatMessage(text, 'user', false, '', null, pairId, null, null);
-                userInput.value = '';
-                setTimeout(() => {
-                    const botReply = `❌ Maaf, total utang kamu hanya <b>Rp ${new Intl.NumberFormat('id-ID').format(debtNow)}</b>.`;
-                    addMessage(botReply, 'bot', false, '', null, pairId);
-                    saveChatMessage(botReply, 'bot', false, '', null, pairId, null, null);
-                }, 1000);
-                return;
+                return; // <-- HENTIKAN FUNGSI DI SINI
             }
 
-            const walletBal = getWalletBalance(targetWallet);
-            const walletInitialized = isWalletInitialized(targetWallet);
+            // --- LOGIKA NORMAL (SALDO CUKUP ATAU SALDO 0) ---
+            const newId = saveTransactionToHistory(transactionData);
+            transactionData.id = newId;
 
-            // --- CEK SALDO KURANG UNTUK BAYAR UTANG ---
-            if (walletInitialized && walletBal < amount) {
-                const pairId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
-                addMessage(text, 'user', false, '', null, pairId);
-                saveChatMessage(text, 'user', false, '', null, pairId, null, null);
-                userInput.value = '';
-                setTimeout(() => {
-                    const botReply = `❌ <b>Saldo dompet "${targetWallet}" tidak mencukupi untuk bayar utang!</b><br><br>
-                    💳 Saldo saat ini: <b>Rp ${new Intl.NumberFormat('id-ID').format(walletBal)}</b><br>
-                    💰 Dibutuhkan: <b>Rp ${new Intl.NumberFormat('id-ID').format(amount)}</b><br><br>
-                    <button class="btn-tambah-saldo-modal px-6 py-2 bg-[#0028B3] text-white rounded-full text-sm font-medium shadow-md">➕ Tambah Saldo</button>
-                    <button class="btn-cancel-wallet px-4 py-2 bg-gray-200 text-gray-700 rounded-full text-sm shadow-md ml-2">✖ Batal</button>`;
-                    addMessage(botReply, 'bot', false, '', null, pairId);
-                    saveChatMessage(botReply, 'bot', false, '', null, pairId, null, null);
-                }, 1000);
-                return;
+            let newBalance = currentBal;
+            if (transactionData.type === 'pemasukan') {
+                newBalance = currentBal + transactionData.amount;
+            } else {
+                newBalance = currentBal - transactionData.amount;
             }
-
-            const newDebt = debtNow - amount;
-            updateDebt(newDebt);
-            setWalletBalance(targetWallet, walletBal - amount);
-            currentBalance = getWalletBalance(getActiveWallet());
-
-            const pairId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
-            addMessage(text, 'user', false, '', null, pairId);
-            saveChatMessage(text, 'user', false, '', null, pairId, null, null);
-            userInput.value = '';
-            setTimeout(() => {
-                const botReply = `✅ Berhasil bayar utang <b>Rp ${new Intl.NumberFormat('id-ID').format(amount)}</b> dari dompet <b>${targetWallet}</b>.<br>💳 Sisa Utang: <b>Rp ${new Intl.NumberFormat('id-ID').format(newDebt)}</b>`;
-                addMessage(botReply, 'bot', false, '', null, pairId);
-                saveChatMessage(botReply, 'bot', false, '', null, pairId, null, null);
-            }, 1000);
-            return;
+            setWalletBalance(targetWallet, newBalance);
+            currentBalance = newBalance;
         }
 
-        // --- HUTANG MASUK (menambah utang & saldo dompet) ---
-        const newDebt = currentDebt + amount;
-        updateDebt(newDebt);
-        setWalletBalance(targetWallet, getWalletBalance(targetWallet) + amount);
-        currentBalance = getWalletBalance(getActiveWallet());
-
+        // TAMPILKAN PESAN USER & BOT
         const pairId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
-        addMessage(text, 'user', false, '', null, pairId);
-        saveChatMessage(text, 'user', false, '', null, pairId, null, null);
+        addMessage(text, 'user', false, '', { ...transactionData, id: newId }, pairId);
+        saveChatMessage(text, 'user', false, '', newId, pairId, transactionData ? transactionData.type : null, transactionData ? transactionData.amount : null);
+        
         userInput.value = '';
         setTimeout(() => {
-            const botReply = `✅ Berhasil mencatat hutang sebesar <b>Rp ${new Intl.NumberFormat('id-ID').format(amount)}</b> masuk ke dompet <b>${targetWallet}</b>.<br>💳 Total Utang: <b>Rp ${new Intl.NumberFormat('id-ID').format(newDebt)}</b>`;
+            const botReply = getBotResponse(text);
             addMessage(botReply, 'bot', false, '', null, pairId);
             saveChatMessage(botReply, 'bot', false, '', null, pairId, null, null);
         }, 1000);
         return;
     }
 
-    // --- TRANSAKSI BIASA (pemasukan / pengeluaran) ---
-    const result = parseTransaction(text);
-    let transactionData = null;
-    let newId = null; // <-- FIX: dideklarasikan di scope luar, tidak lagi ReferenceError
-
-    if (result.success) {
-        transactionData = result.data;
-        transactionData.wallet = targetWallet;
-
-        const currentBal = getWalletBalance(targetWallet);
-        const walletInitialized = isWalletInitialized(targetWallet);
-
-        // --- CEK SALDO KURANG: hanya diblokir jika dompet SUDAH pernah diatur ---
-        // Jika dompet belum pernah diatur (baru pertama dipakai), transaksi tetap
-        // diproses agar saldo minus lalu bot memandu "atur saldo awal" (lihat getBotResponse).
-        if (transactionData.type === 'pengeluaran' && walletInitialized && currentBal < transactionData.amount) {
-            const pairId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
-            const botReply = `❌ <b>Saldo dompet "${targetWallet}" tidak mencukupi!</b><br><br>
-            💳 Saldo saat ini: <b>Rp ${new Intl.NumberFormat('id-ID').format(currentBal)}</b><br>
-            💰 Dibutuhkan: <b>Rp ${new Intl.NumberFormat('id-ID').format(transactionData.amount)}</b><br><br>
-            <button class="btn-tambah-saldo-modal px-6 py-2 bg-[#0028B3] text-white rounded-full text-sm font-medium shadow-md">➕ Tambah Saldo</button>
-            <button class="btn-cancel-wallet px-4 py-2 bg-gray-200 text-gray-700 rounded-full text-sm shadow-md ml-2">✖ Batal</button>`;
-            addMessage(botReply, 'bot', false, '', null, pairId);
-            saveChatMessage(botReply, 'bot', false, '', null, pairId, null, null);
-            return; // <-- HENTIKAN FUNGSI, transaksi TIDAK disimpan
-        }
-
-        // --- LOGIKA NORMAL (saldo cukup, atau dompet belum pernah diatur) ---
-        newId = saveTransactionToHistory(transactionData);
-        transactionData.id = newId;
-
-        let newBalance;
-        if (transactionData.type === 'pemasukan') {
-            newBalance = currentBal + transactionData.amount;
-        } else {
-            newBalance = currentBal - transactionData.amount;
-        }
-        setWalletBalance(targetWallet, newBalance);
-        currentBalance = getWalletBalance(getActiveWallet());
-    }
-
+    // --- PERINTAH UTANG ---
     const pairId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
-    addMessage(text, 'user', false, '', transactionData ? { ...transactionData, id: newId } : null, pairId);
-    saveChatMessage(text, 'user', false, '', newId, pairId, transactionData ? transactionData.type : null, transactionData ? transactionData.amount : null);
-
+    addMessage(text, 'user', false, '', null, pairId);
+    saveChatMessage(text, 'user', false, '', null, pairId, null, null);
     userInput.value = '';
     setTimeout(() => {
-        const botReply = getBotResponse(text, targetWallet);
+        const botReply = getBotResponse(text);
         addMessage(botReply, 'bot', false, '', null, pairId);
         saveChatMessage(botReply, 'bot', false, '', null, pairId, null, null);
     }, 1000);
@@ -1098,7 +921,7 @@ function updateDebt(newDebt) {
 }
 
 // ==========================================
-// --- LOGIKA POPUP SALDO (AWAL / TAMBAH) ----
+// --- LOGIKA POPUP SALDO AWAL ---------------
 // ==========================================
 
 const popup = document.getElementById('saldoPopup');
@@ -1106,21 +929,17 @@ const popupInput = document.getElementById('saldoPopupInput');
 const popupOk = document.getElementById('saldoPopupOk');
 const popupCancel = document.getElementById('saldoPopupCancel');
 
-// 'awal'   -> dipicu tombol "Atur Saldo Awal" (dompet belum pernah/masih negatif) -> kirim "saldo awal X"
-// 'tambah' -> dipicu tombol "Tambah Saldo" (dompet sudah ada isinya, tinggal top up) -> kirim "tambah saldo X"
-let saldoPopupMode = 'awal';
-
 popupOk.onclick = () => {
     const val = popupInput.value.trim();
     if (val === '') {
-        alert('Silakan masukkan nominal saldo.');
+        alert('Silakan masukkan nominal saldo awal.');
         return;
     }
 
     popup.classList.add('hidden');
     popup.classList.remove('flex');
-
-    userInput.value = saldoPopupMode === 'tambah' ? `tambah saldo ${val}` : `saldo awal ${val}`;
+    
+    userInput.value = `saldo awal ${val}`;
     sendMessage();
     popupInput.value = '';
 };
