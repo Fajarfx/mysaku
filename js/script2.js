@@ -973,3 +973,175 @@ getBalance = function() {
     const active = getActiveWallet();
     return getWalletBalance(active);
 };
+
+
+
+// ==========================================
+// --- MODUL ONBOARDING (PANDUAN USER) --------
+// ==========================================
+
+// Variabel untuk melacak langkah panduan
+let onboardingStep = 0;
+const ONBOARDING_STEPS = [
+    {
+        title: "Langkah 1: Atur Saldo Awal",
+        desc: "Agar aplikasi bisa mencatat keuangan, kamu perlu mengatur saldo awal dompet utama (Cash) terlebih dahulu.",
+        example: "Contoh: ketik <i>'saldo awal 1jt'</i> atau klik tombol di bawah.",
+        buttonText: "🪙 Set Saldo Awal",
+        buttonAction: "btn-set-saldo-modal"
+    },
+    {
+        title: "Langkah 2: Catat Pemasukan",
+        desc: "Setelah saldo terisi, kamu bisa mencatat uang yang kamu terima (gaji, bonus, dll).",
+        example: "Contoh: ketik <i>'terima gaji 3jt'</i>.",
+        buttonText: "📈 Coba Pemasukan",
+        buttonAction: "btn-onboarding-income"
+    },
+    {
+        title: "Langkah 3: Catat Pengeluaran",
+        desc: "Jangan lupa mencatat uang yang kamu keluarkan untuk kebutuhan sehari-hari.",
+        example: "Contoh: ketik <i>'beli nasi 20rb'</i> atau <i>'bayar listrik 150rb'</i>.",
+        buttonText: "📉 Coba Pengeluaran",
+        buttonAction: "btn-onboarding-expense"
+    },
+    {
+        title: "Langkah 4: Ganti Dompet (Opsional)",
+        desc: "Kamu bisa memiliki beberapa dompet sekaligus (Cash, BCA, DANA, dll).",
+        example: "Contoh: ketik <i>'gaji 5jt ke bca'</i> atau ganti dompet di halaman Laporan.",
+        buttonText: "🔄 Lihat Dompet",
+        buttonAction: "btn-onboarding-wallet"
+    }
+];
+
+// Fungsi untuk memulai panduan
+function startOnboarding() {
+    onboardingStep = 0;
+    sendOnboardingStep();
+}
+
+// Fungsi untuk mengirim langkah panduan berikutnya
+function sendOnboardingStep() {
+    if (onboardingStep >= ONBOARDING_STEPS.length) {
+        // --- PANDUAN SELESAI ---
+        const pairId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+        const botReply = `🎉 <b>Selamat! Kamu sudah selesai mempelajari dasar-dasar MySaku.</b><br><br>
+        Sekarang kamu sudah siap mencatat keuangan pribadimu! 💪<br><br>
+        Klik tombol di bawah untuk mulai menggunakan aplikasi secara normal.`;
+        addMessage(botReply, 'bot', false, '', null, pairId);
+        saveChatMessage(botReply, 'bot', false, '', null, pairId, null, null);
+        onboardingStep = 0;
+        return;
+    }
+
+    const step = ONBOARDING_STEPS[onboardingStep];
+    const pairId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+    const botReply = `📘 <b>${step.title}</b><br><br>
+    ${step.desc}<br><br>
+    <i>💡 ${step.example}</i><br><br>
+    <button class="${step.buttonAction} px-6 py-2 bg-[#0028B3] text-white rounded-full text-sm font-medium shadow-md">${step.buttonText}</button>`;
+    
+    addMessage(botReply, 'bot', false, '', null, pairId);
+    saveChatMessage(botReply, 'bot', false, '', null, pairId, null, null);
+}
+
+// --- EVENT LISTENER UNTUK TOMBOL ONBOARDING ---
+// Ketika user mengklik tombol di langkah 1 (Set Saldo Awal)
+document.addEventListener('click', function(e) {
+    const btn = e.target.closest('.btn-set-saldo-modal');
+    if (btn && onboardingStep === 0) {
+        e.stopPropagation();
+        // Buka popup saldo awal
+        saldoPopupMode = 'awal';
+        document.getElementById('saldoPopup').classList.remove('hidden');
+        document.getElementById('saldoPopup').classList.add('flex');
+        setTimeout(() => {
+            document.getElementById('saldoPopupInput').focus();
+        }, 100);
+        return;
+    }
+
+    // Saat user selesai mengisi saldo awal (dideteksi via transaksi), lanjutkan langkah 1 -> 2
+    // Kita akan mendeteksi ini di `sendMessage` dengan memeriksa apakah onboardingStep sedang berjalan
+});
+
+// Override kecil untuk mendeteksi selesainya langkah saldo awal
+const originalSendMessage = sendMessage;
+sendMessage = function() {
+    // Simpan teks asli
+    const text = userInput.value.trim();
+    
+    // Jalankan logika asli
+    originalSendMessage.apply(this, arguments);
+
+    // Jika onboarding sedang berjalan dan teks berisi "saldo awal"
+    if (onboardingStep === 0 && text.toLowerCase().includes('saldo awal')) {
+        // Tunggu sampai bot selesai merespons (delay 1.5 detik)
+        setTimeout(() => {
+            onboardingStep++; // Maju ke langkah 2
+            sendOnboardingStep(); // Kirim langkah berikutnya
+        }, 1500);
+    }
+};
+
+// Untuk langkah 2 & 3 (pemasukan / pengeluaran), kita bisa mendeteksinya dengan cara yang sama
+// karena user mengikuti instruksi dengan mengetik manual.
+// Override tombol untuk langkah-langkah selanjutnya (bisa ditambahkan nanti)
+
+// --- PERINTAH MANUAL UNTUK MEMULAI PANDUAN ---
+// Jika user mengetik "panduan" atau "mulai", jalankan onboarding
+const originalGetBotResponse = getBotResponse;
+getBotResponse = function(inputText) {
+    const lowerText = inputText.toLowerCase();
+    if (lowerText.includes('panduan') || lowerText.includes('mulai') || lowerText.includes('onboarding')) {
+        // Jika sedang tidak dalam panduan, mulai
+        if (onboardingStep === 0) {
+            setTimeout(() => startOnboarding(), 300);
+            return `👋 <b>Halo! Aku akan memandu kamu menggunakan MySaku.</b><br><br>
+            Ikuti langkah-langkah di bawah ini. Kamu bisa mengklik tombol yang disediakan atau mengetik contoh perintahnya secara manual.<br><br>
+            <i>Ketik 'lewati' jika ingin langsung menggunakan aplikasi.</i>`;
+        } else {
+            return `⏳ Kamu sedang dalam panduan. Selesaikan langkah saat ini terlebih dahulu.`;
+        }
+    }
+    
+    // Jika user mengetik "lewati", reset panduan
+    if (lowerText.includes('lewati') || lowerText.includes('skip')) {
+        onboardingStep = 0;
+        return `✅ Panduan dilewati. Kamu bisa memulai panduan lagi kapan saja dengan mengetik <i>'panduan'</i>.`;
+    }
+
+    // Panggil fungsi asli untuk perintah lainnya
+    return originalGetBotResponse.apply(this, arguments);
+};
+
+// === TAMBAHAN UNTUK LANGKAH 2 & 3 ===
+// Ketika user mengetik sesuai instruksi di langkah 2 (pemasukan) atau 3 (pengeluaran)
+// sistem akan mendeteksi dan maju ke langkah berikutnya.
+// Kita cukup memodifikasi `sendMessage` sedikit lagi:
+const originalSendMessageFinal = sendMessage;
+sendMessage = function() {
+    const text = userInput.value.trim();
+    const lowerText = text.toLowerCase();
+
+    // Panggil fungsi asli dulu
+    originalSendMessageFinal.apply(this, arguments);
+
+    // Deteksi langkah 2 (Pemasukan)
+    if (onboardingStep === 1 && (lowerText.includes('terima') || lowerText.includes('gaji'))) {
+        setTimeout(() => {
+            onboardingStep++; // Maju ke langkah 3
+            sendOnboardingStep();
+        }, 1500);
+    }
+
+    // Deteksi langkah 3 (Pengeluaran)
+    if (onboardingStep === 2 && (lowerText.includes('beli') || lowerText.includes('bayar') || lowerText.includes('makan'))) {
+        setTimeout(() => {
+            onboardingStep++; // Maju ke langkah 4
+            sendOnboardingStep();
+        }, 1500);
+    }
+
+    // Deteksi langkah 4 (Ganti dompet) - user bisa klik tombol atau buka laporan manual
+    // Kita akan memberikan tombol untuk membuka halaman Laporan di langkah 4
+};

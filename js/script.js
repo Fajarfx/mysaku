@@ -1,8 +1,4 @@
 // --- 1. Inisialisasi Elemen DOM ---
-
-// ini script yang tmbah saldo bener sedangkan set saldo awal salah
-
-
 const chatArea = document.getElementById('chatArea');
 const userInput = document.getElementById('userInput');
 const btnSend = document.getElementById('btnSend');
@@ -23,6 +19,7 @@ const deleteBtn = document.getElementById('deleteBtn');
 
 let selectedMessageElement = null;
 let lastMessageDate = null;
+let onboardingFinished = false;
 
 // ==========================================
 // --- MODUL MULTI-DOMPET --------------------
@@ -428,17 +425,37 @@ overlay.onclick = closeAllMenus;
 // --- 6. Logika AI Bot & Parser ---
 function getBotResponse(inputText, walletName) {
     const lowerText = inputText.toLowerCase();
-    
+
+    // --- PANDUAN ONBOARDING ---
+    if (lowerText.includes('panduan') || lowerText.includes('mulai') || lowerText.includes('onboarding')) {
+        // Reset status sebelum memulai
+        onboardingSkipped = false;
+        onboardingStep = 0;
+        onboardingFinished = false;
+        setTimeout(() => startOnboarding(), 300);
+        return `👋 <b>Halo! Aku akan memandu kamu menggunakan MySaku.</b><br><br>
+        Ikuti langkah-langkah di bawah ini. Kamu bisa mengklik tombol yang disediakan atau mengetik contoh perintahnya secara manual.<br><br>
+        <i>Ketik 'lewati' jika ingin langsung menggunakan aplikasi.</i>`;
+    }
+
+    if (lowerText.includes('lewati') || lowerText.includes('skip')) {
+        onboardingStep = -1;
+        onboardingSkipped = true;
+        onboardingFinished = true;
+        return `✅ Panduan dilewati. Kamu bisa memulai panduan lagi kapan saja dengan mengetik <i>'panduan'</i>.`;
+    }
+    // --- AKHIR PANDUAN ---
+
     if (lowerText.includes('bantuan') || lowerText.includes('help') || lowerText.includes('menu') || lowerText.includes('panduan')) {
         return `<b>📖 Panduan Menggunakan Mysaku</b><br><br>
         <b>1. 💰 Mencatat Saldo Awal</b><br><i>Contoh:</i> "Saldo awal 2jt"<br>
-        <b>2. ➕ Tambah Saldo</b><br><i>Contoh:</i> "Tambah saldo 500rb"<br>
+        <b>2. ➕ Tambah Saldo</b><br><i>Contoh:</i> "Tambah saldo 500k"<br>
         <b>3. 📈 Mencatat Pemasukan</b><br><i>Contoh:</i> "Gaji 3jt"<br>
-        <b>4. 📉 Mencatat Pengeluaran</b><br><i>Contoh:</i> "Beli nasi 20rb"<br>
-        <b>5. 💳 Menentukan Dompet</b><br><i>Contoh:</i> "Bayar bensin 50rb pakai bca"<br>
+        <b>4. 📉 Mencatat Pengeluaran</b><br><i>Contoh:</i> "Beli nasi 20k"<br>
+        <b>5. 💳 Menentukan Dompet</b><br><i>Contoh:</i> "Bayar bensin 50k pakai bca"<br>
         <b>6. 💵 Cek Saldo</b><br><i>Ketik:</i> "Cek saldo"<br>
         <b>7. 💰 Cek Utang</b><br><i>Ketik:</i> "Cek utang"<br>
-        <hr><i>💡 Tip: Gunakan 20rb, 2.5jt, Rp 50.000</i>`;
+        <hr><i>💡 Tip: Gunakan 20k, 2.5jt, Rp 50.000</i>`;
     }
 
     if (lowerText.includes('cek saldo') || lowerText.includes('sisa uang') || lowerText.includes('saldo saya')) {
@@ -469,7 +486,7 @@ function getBotResponse(inputText, walletName) {
     // --- UTANG / BAYAR UTANG ---
     if (lowerText.includes('utang') || lowerText.includes('hutang')) {
         const amount = parseAmount(inputText);
-        if (!amount) return `❌ Format tidak valid. Contoh: <i>"hutang ke Andi 200rb"</i>`;
+        if (!amount) return `❌ Format tidak valid. Contoh: <i>"hutang ke Andi 200k"</i>`;
 
         let debt = localStorage.getItem('mysaku_debt') ? parseFloat(localStorage.getItem('mysaku_debt')) : 0;
         const activeWallet = getActiveWallet();
@@ -491,19 +508,18 @@ function getBotResponse(inputText, walletName) {
         return `✅ Berhasil mencatat hutang sebesar <b>Rp ${new Intl.NumberFormat('id-ID').format(amount)}</b> masuk ke dompet <b>${activeWallet}</b>.<br>💳 Total Utang: <b>Rp ${new Intl.NumberFormat('id-ID').format(debt)}</b>`;
     }
 
-// --- LOGIKA PARSER TRANSAKSI ---
-const result = parseTransaction(inputText);
-if (!result.success) return result.message;
+    // --- LOGIKA PARSER TRANSAKSI ---
+    const result = parseTransaction(inputText);
+    if (!result.success) return result.message;
 
-const d = result.data;
-const formattedAmount = new Intl.NumberFormat('id-ID').format(d.amount);
-const typeLabel = d.type === 'pemasukan' ? '📈 Pemasukan' : '📉 Pengeluaran';
-const walletForDisplay = walletName || getActiveWallet(); // Dompet TUJUAN transaksi, bukan sekadar dompet aktif
-const walletBal = getWalletBalance(walletForDisplay);
-const walletWasInitialized = isWalletInitialized(walletForDisplay);
+    const d = result.data;
+    const formattedAmount = new Intl.NumberFormat('id-ID').format(d.amount);
+    const typeLabel = d.type === 'pemasukan' ? '📈 Pemasukan' : '📉 Pengeluaran';
+    const walletForDisplay = walletName || getActiveWallet();
+    const walletBal = getWalletBalance(walletForDisplay);
+    const walletWasInitialized = isWalletInitialized(walletForDisplay);
 
-// Tampilkan nama dompet saja (tanpa emoji)
-let responseText = `✅ Berhasil mencatat ${d.type}!<br>📌 <b>${typeLabel}</b><br>💰 Rp ${formattedAmount}<br>📂 ${d.category}<br>💳 ${walletForDisplay}`;
+    let responseText = `✅ Berhasil mencatat ${d.type}!<br>📌 <b>${typeLabel}</b><br>💰 Rp ${formattedAmount}<br>📂 ${d.category}<br>💳 ${walletForDisplay}`;
 
     if (!walletWasInitialized) {
         if (d.type === 'pengeluaran') {
@@ -606,7 +622,6 @@ function loadChatMessages() {
         const bubble = document.createElement('div');
         bubble.className = `bubble ${msg.sender}`;
 
-        // Muat data ke dataset
         row.dataset.timestamp = msg.timestamp;
         row.dataset.uniqueId = msg.uniqueId;
         if (msg.transactionId) {
@@ -693,17 +708,16 @@ function sendMessage() {
     const text = userInput.value.trim();
     if (text === '') return;
 
-    // --- Cegah input angka doang ---
+    // LOG STATUS ONBOARDING SEBELUM PROSES
+    console.log('📊 [sendMessage] Status: step=' + onboardingStep + ', skipped=' + onboardingSkipped + ', finished=' + onboardingFinished + ', text="' + text + '"');
+
     if (/^\d+$/.test(text.replace(/[.,]/g, ''))) {
-        alert('⚠️ Format tidak valid. Mohon sertakan kata kerja (misal: "beli nasi 20rb" atau "terima gaji 3jt").');
+        alert('⚠️ Format tidak valid. Mohon sertakan kata kerja (misal: "beli nasi 20k" atau "terima gaji 3jt").');
         return;
     }
 
     const lowerText = text.toLowerCase();
 
-    // --- DETEKSI DOMPET TUJUAN ---
-    // Jika user menyebut dompet ("pakai/ke/via <dompet>"), transaksi masuk/keluar dari dompet itu.
-    // Kalau tidak disebutkan, pakai dompet yang sedang aktif.
     let targetWallet = getActiveWallet();
     const walletMatch = text.match(/\s(?:pakai|ke|via)\s+(\w+)/i);
     if (walletMatch) {
@@ -711,7 +725,122 @@ function sendMessage() {
         if (resolved) targetWallet = resolved;
     }
 
-    // --- TAMBAH SALDO (bisa dipakai kapan saja, tidak peduli dompet sudah pernah diatur atau belum) ---
+    // --- DETEKSI KEMAJUAN ONBOARDING ---
+    // HANYA JALAN JIKA SEDANG DALAM MODE TUTORIAL (step 0,1,2,3)
+    if (onboardingStep === 0 || onboardingStep === 1 || onboardingStep === 2 || onboardingStep === 3) {
+        // Pastikan tidak dalam mode skipped atau finished
+        if (!onboardingSkipped && !onboardingFinished) {
+            console.log('📌 [TUTORIAL] Onboarding step:', onboardingStep, 'Text:', lowerText);
+            
+            let stepProcessed = false;
+            let isCorrectCommand = false;
+            
+            // STEP 0: Set Saldo Awal
+            if (onboardingStep === 0) {
+                if (lowerText.includes('saldo awal') || lowerText.includes('set saldo')) {
+                    onboardingStep++;
+                    stepProcessed = true;
+                    isCorrectCommand = true;
+                    console.log('➡️ Step 0 → 1');
+                    setTimeout(() => {
+                        sendOnboardingStep();
+                    }, 1500);
+                } else {
+                    // Beri tahu user harus mengatur saldo awal dulu
+                    setTimeout(() => {
+                        const pairId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+                        const reminder = `💡 <b>Langkah 1: Atur Saldo Awal</b><br><br>
+                        Kamu harus mengatur saldo awal dulu sebelum melanjutkan.<br><br>
+                        Ketik: <i>"saldo awal 1jt"</i> atau klik tombol di bawah.<br><br>
+                        <button class="btn-set-saldo-modal px-6 py-2 bg-[#0028B3] text-white rounded-full text-sm font-medium shadow-md">🪙 Set Saldo Awal</button>`;
+                        addMessage(reminder, 'bot', false, '', null, pairId);
+                        saveChatMessage(reminder, 'bot', false, '', null, pairId, null, null);
+                    }, 1000);
+                }
+            }
+            // STEP 1: Pemasukan
+            else if (onboardingStep === 1) {
+                if (lowerText.includes('terima') || lowerText.includes('gaji') || lowerText.includes('bonus')) {
+                    onboardingStep++;
+                    stepProcessed = true;
+                    isCorrectCommand = true;
+                    console.log('➡️ Step 1 → 2');
+                    setTimeout(() => {
+                        sendOnboardingStep();
+                    }, 1500);
+                } else {
+                    // Beri tahu user harus mencatat pemasukan
+                    setTimeout(() => {
+                        const pairId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+                        const reminder = `💡 <b>Langkah 2: Catat Pemasukan</b><br><br>
+                        Kamu harus mencatat pemasukan dulu sebelum melanjutkan.<br><br>
+                        Contoh: ketik <i>"terima gaji 3jt"</i>`;
+                        addMessage(reminder, 'bot', false, '', null, pairId);
+                        saveChatMessage(reminder, 'bot', false, '', null, pairId, null, null);
+                    }, 1000);
+                }
+            }
+            // STEP 2: Pengeluaran
+            else if (onboardingStep === 2) {
+                if (lowerText.includes('beli') || lowerText.includes('bayar') || lowerText.includes('makan') || lowerText.includes('minum') || lowerText.includes('transport')) {
+                    onboardingStep++;
+                    stepProcessed = true;
+                    isCorrectCommand = true;
+                    console.log('➡️ Step 2 → 3');
+                    setTimeout(() => {
+                        sendOnboardingStep();
+                    }, 1500);
+                } else {
+                    // Beri tahu user harus mencatat pengeluaran
+                    setTimeout(() => {
+                        const pairId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+                        const reminder = `💡 <b>Langkah 3: Catat Pengeluaran</b><br><br>
+                        Kamu harus mencatat pengeluaran dulu sebelum melanjutkan.<br><br>
+                        Contoh: ketik <i>"beli nasi 20k"</i> atau <i>"bayar listrik 150k"</i>`;
+                        addMessage(reminder, 'bot', false, '', null, pairId);
+                        saveChatMessage(reminder, 'bot', false, '', null, pairId, null, null);
+                    }, 1000);
+                }
+            }
+            // STEP 3: Ganti Dompet
+            else if (onboardingStep === 3) {
+                const walletMatch2 = text.match(/\s(?:ke|pakai|via)\s+(\w+)/i);
+                if (walletMatch2) {
+                    const resolved = resolveWalletName(walletMatch2[1]);
+                    if (resolved) {
+                        onboardingStep++;
+                        stepProcessed = true;
+                        isCorrectCommand = true;
+                        console.log('🎉 Onboarding SELESAI! Step 3 → 4 (dompet terdeteksi: ' + resolved + ')');
+                        setTimeout(() => {
+                            sendOnboardingStep();
+                        }, 2000);
+                    }
+                } else {
+                    // Beri tahu user harus menyebut dompet tujuan
+                    setTimeout(() => {
+                        const pairId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+                        const reminder = `💡 <b>Langkah 4: Ganti Dompet (Opsional)</b><br><br>
+                        Kamu harus menyebut dompet tujuan untuk menyelesaikan langkah ini.<br><br>
+                        Contoh: ketik <i>"gaji 5jt ke bca"</i> atau <i>"beli makan 20k pakai dana"</i>`;
+                        addMessage(reminder, 'bot', false, '', null, pairId);
+                        saveChatMessage(reminder, 'bot', false, '', null, pairId, null, null);
+                    }, 1000);
+                }
+            }
+            
+            if (!stepProcessed && !isCorrectCommand && onboardingStep < 4 && onboardingStep >= 0) {
+                console.log('⏳ [TUTORIAL] Step tidak dikenali, menunggu input yang sesuai.');
+            }
+        } else {
+            console.log('💬 [REAL MODE] Onboarding step=' + onboardingStep + ' tapi skipped/finished=true, transaksi normal.');
+        }
+    } else {
+        // Mode REAL (bukan tutorial) - onboardingStep = -999 atau nilai negatif lainnya
+        console.log('💬 [REAL MODE] Onboarding tidak aktif (step=' + onboardingStep + '), memproses transaksi normal.');
+    }
+
+    // --- TAMBAH SALDO ---
     if (lowerText.includes('tambah saldo')) {
         const amount = parseAmount(text);
         if (!amount) {
@@ -719,7 +848,7 @@ function sendMessage() {
             saveChatMessage(text, 'user', false, '');
             userInput.value = '';
             setTimeout(() => {
-                const botReply = `❌ Format tidak valid. Contoh: "Tambah saldo 500rb"`;
+                const botReply = `❌ Format tidak valid. Contoh: "Tambah saldo 500k"`;
                 const pairId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
                 addMessage(botReply, 'bot', false, '', null, pairId);
                 saveChatMessage(botReply, 'bot', false, '', null, pairId, null, null);
@@ -748,7 +877,7 @@ function sendMessage() {
         return;
     }
 
-    // --- SALDO AWAL (per dompet, bukan berdasarkan variabel global) ---
+    // --- SALDO AWAL ---
     if (lowerText.includes('saldo awal') || lowerText.includes('set saldo')) {
         const walletBalBefore = getWalletBalance(targetWallet);
         const walletInitialized = isWalletInitialized(targetWallet);
@@ -801,7 +930,7 @@ function sendMessage() {
         return;
     }
 
-    // --- PERINTAH UTANG (termasuk cek saldo kurang saat bayar utang) ---
+    // --- PERINTAH UTANG ---
     if (lowerText.includes('utang') || lowerText.includes('hutang')) {
         const amount = parseAmount(text);
 
@@ -811,7 +940,7 @@ function sendMessage() {
             saveChatMessage(text, 'user', false, '', null, pairId, null, null);
             userInput.value = '';
             setTimeout(() => {
-                const botReply = `❌ Format tidak valid. Contoh: <i>"hutang ke Andi 200rb"</i>`;
+                const botReply = `❌ Format tidak valid. Contoh: <i>"hutang ke Andi 200k"</i>`;
                 addMessage(botReply, 'bot', false, '', null, pairId);
                 saveChatMessage(botReply, 'bot', false, '', null, pairId, null, null);
             }, 1000);
@@ -839,7 +968,6 @@ function sendMessage() {
             const walletBal = getWalletBalance(targetWallet);
             const walletInitialized = isWalletInitialized(targetWallet);
 
-            // --- CEK SALDO KURANG UNTUK BAYAR UTANG ---
             if (walletInitialized && walletBal < amount) {
                 const pairId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
                 addMessage(text, 'user', false, '', null, pairId);
@@ -874,7 +1002,6 @@ function sendMessage() {
             return;
         }
 
-        // --- HUTANG MASUK (menambah utang & saldo dompet) ---
         const newDebt = currentDebt + amount;
         updateDebt(newDebt);
         setWalletBalance(targetWallet, getWalletBalance(targetWallet) + amount);
@@ -892,10 +1019,10 @@ function sendMessage() {
         return;
     }
 
-    // --- TRANSAKSI BIASA (pemasukan / pengeluaran) ---
+    // --- TRANSAKSI BIASA ---
     const result = parseTransaction(text);
     let transactionData = null;
-    let newId = null; // <-- FIX: dideklarasikan di scope luar, tidak lagi ReferenceError
+    let newId = null;
 
     if (result.success) {
         transactionData = result.data;
@@ -904,9 +1031,6 @@ function sendMessage() {
         const currentBal = getWalletBalance(targetWallet);
         const walletInitialized = isWalletInitialized(targetWallet);
 
-        // --- CEK SALDO KURANG: hanya diblokir jika dompet SUDAH pernah diatur ---
-        // Jika dompet belum pernah diatur (baru pertama dipakai), transaksi tetap
-        // diproses agar saldo minus lalu bot memandu "atur saldo awal" (lihat getBotResponse).
         if (transactionData.type === 'pengeluaran' && walletInitialized && currentBal < transactionData.amount) {
             const pairId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
             const botReply = `❌ <b>Saldo dompet "${targetWallet}" tidak mencukupi!</b><br><br>
@@ -916,10 +1040,9 @@ function sendMessage() {
             <button class="btn-cancel-wallet px-4 py-2 bg-gray-200 text-gray-700 rounded-full text-sm shadow-md ml-2">✖ Batal</button>`;
             addMessage(botReply, 'bot', false, '', null, pairId);
             saveChatMessage(botReply, 'bot', false, '', null, pairId, null, null);
-            return; // <-- HENTIKAN FUNGSI, transaksi TIDAK disimpan
+            return;
         }
 
-        // --- LOGIKA NORMAL (saldo cukup, atau dompet belum pernah diatur) ---
         newId = saveTransactionToHistory(transactionData);
         transactionData.id = newId;
 
@@ -942,6 +1065,9 @@ function sendMessage() {
         const botReply = getBotResponse(text, targetWallet);
         addMessage(botReply, 'bot', false, '', null, pairId);
         saveChatMessage(botReply, 'bot', false, '', null, pairId, null, null);
+
+        // CEK STATUS ONBOARDING SETELAH BOT REPLY
+        console.log('🔍 Status setelah transaksi - step:', onboardingStep, 'selesai:', onboardingFinished, 'skipped:', onboardingSkipped);
     }, 1000);
 }
 
@@ -955,9 +1081,8 @@ document.addEventListener('DOMContentLoaded', function() {
     loadChatMessages();
 });
 
-// Hanya tampilkan sambutan jika belum ada pesan sama sekali
 if (chatArea.children.length === 0) {
-    addMessage("Halo! Aku Mysaku, asisten keuanganmu. 👋<br><br>Ketik <b>'bantuan'</b> untuk melihat daftar perintah.", 'bot');
+    addMessage("Halo! Aku Mysaku, asisten keuanganmu. 👋<br><br>Ketik <b>'panduan'</b> jika kamu baru pertama kali menggunakan aplikasi ini, atau <b>'bantuan'</b> untuk melihat daftar perintah.", 'bot');
 }
 
 // ==========================================
@@ -966,21 +1091,29 @@ if (chatArea.children.length === 0) {
 
 function parseAmount(text) {
     let clean = text.toLowerCase().trim();
+    
+    // Deteksi milyar
     let match = clean.match(/([0-9,\.]+)\s*(m|milyar|miliar)/i);
     if (match) {
         let num = parseFloat(match[1].replace(/\./g, '').replace(/,/g, '.'));
         return num * 1000000000;
     }
+    
+    // Deteksi juta (jt / juta)
     match = clean.match(/([0-9,\.]+)\s*(jt|juta)/i);
     if (match) {
         let num = parseFloat(match[1].replace(/\./g, '').replace(/,/g, '.'));
         return num * 1000000;
     }
-    match = clean.match(/([0-9,\.]+)\s*(rb|ribu|k)/i);
+    
+    // Deteksi ribu (k / rb / ribu)
+    match = clean.match(/([0-9,\.]+)\s*(k|rb|ribu)/i);
     if (match) {
         let num = parseFloat(match[1].replace(/\./g, '').replace(/,/g, '.'));
         return num * 1000;
     }
+    
+    // Deteksi angka biasa (Rp 50000)
     match = clean.match(/(?:rp\s*)?([0-9,\.]+)/i);
     if (match) {
         let numStr = match[1].replace(/\./g, '').replace(/,/g, '');
@@ -1046,7 +1179,7 @@ function determineTransactionType(text) {
 function parseTransaction(userText) {
     const amount = parseAmount(userText);
     if (!amount) {
-        return { success: false, message: "Maaf, saya tidak menemukan nominal uangnya. Coba contoh: 'beli nasi 20rb'" };
+        return { success: false, message: "Maaf, saya tidak menemukan nominal uangnya. Coba contoh: 'beli nasi 20k'" };
     }
     const type = determineTransactionType(userText);
     let category = 'Lainnya';
@@ -1106,8 +1239,6 @@ const popupInput = document.getElementById('saldoPopupInput');
 const popupOk = document.getElementById('saldoPopupOk');
 const popupCancel = document.getElementById('saldoPopupCancel');
 
-// 'awal'   -> dipicu tombol "Atur Saldo Awal" (dompet belum pernah/masih negatif) -> kirim "saldo awal X"
-// 'tambah' -> dipicu tombol "Tambah Saldo" (dompet sudah ada isinya, tinggal top up) -> kirim "tambah saldo X"
 let saldoPopupMode = 'awal';
 
 popupOk.onclick = () => {
@@ -1120,7 +1251,17 @@ popupOk.onclick = () => {
     popup.classList.add('hidden');
     popup.classList.remove('flex');
 
-    userInput.value = saldoPopupMode === 'tambah' ? `tambah saldo ${val}` : `saldo awal ${val}`;
+    // CEK APAKAH SEDANG DALAM MODE TUTORIAL
+    const isTutorialMode = !onboardingSkipped && !onboardingFinished && (onboardingStep === 0 || onboardingStep === 1 || onboardingStep === 2 || onboardingStep === 3);
+    
+    if (isTutorialMode) {
+        // Mode tutorial - kirim sebagai perintah tutorial
+        userInput.value = saldoPopupMode === 'tambah' ? `tambah saldo ${val}` : `saldo awal ${val}`;
+    } else {
+        // Mode real - kirim sebagai perintah normal
+        userInput.value = saldoPopupMode === 'tambah' ? `tambah saldo ${val}` : `saldo awal ${val}`;
+    }
+    
     sendMessage();
     popupInput.value = '';
 };
@@ -1144,7 +1285,6 @@ const originalUpdateBalance = updateBalance;
 updateBalance = function(newBalance) {
     const active = getActiveWallet();
     setWalletBalance(active, newBalance);
-    // PERBAIKAN PENTING: currentBalance harus diupdate agar sinkron!
     currentBalance = newBalance;
     return newBalance;
 };
