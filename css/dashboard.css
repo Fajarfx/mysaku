@@ -149,3 +149,132 @@ html.dark .text-gray-600,
 html.dark .text-gray-700 {
     color: #b9c0de !important;
 }
+
+/* ========================================= */
+/* MODE GELAP - PERLUASAN (perbaikan tulisan tak terlihat) */
+/* ========================================= */
+
+/* --- Teks sekunder / abu-abu kebiruan (dipakai luas: label kartu, keterangan) --- */
+html.dark .text-\[\#5a6f9a\],
+html.dark .text-\[\#4a6a9a\],
+html.dark .text-\[\#6a7fa8\] {
+    color: #8a93b8 !important;
+}
+
+/* --- Teks merah (nominal pengeluaran, peringatan, tombol hapus) tetap merah tapi lebih terang biar kontras di background gelap --- */
+html.dark .text-\[\#FF4444\],
+html.dark .text-\[\#d32f2f\],
+html.dark .text-\[\#dc2626\],
+html.dark .text-red-600 {
+    color: #ff6b6b !important;
+}
+
+/* --- Teks biru merek (dipakai untuk saldo, tombol, highlight) dibuat sedikit lebih terang --- */
+html.dark .text-\[\#0028B3\] {
+    color: #6f8fff !important;
+}
+
+/* --- Warna oranye untuk badge/peringatan jatuh tempo & catatan info aplikasi --- */
+html.dark .text-\[\#92400e\],
+html.dark .text-\[\#d97706\] {
+    color: #fbbf24 !important;
+}
+
+/* --- Background merah/hijau muda (badge tren, kartu ringkasan) --- */
+html.dark .bg-red-50 {
+    background-color: rgba(255, 107, 107, 0.12) !important;
+}
+html.dark .bg-red-100 {
+    background-color: rgba(255, 107, 107, 0.15) !important;
+}
+html.dark .bg-\[\#ffe0e0\],
+html.dark .bg-\[\#fff5f5\] {
+    background-color: rgba(255, 107, 107, 0.12) !important;
+}
+html.dark .bg-\[\#f0f5fe\] {
+    background-color: rgba(111, 143, 255, 0.12) !important;
+}
+html.dark .bg-\[\#f0f4fe\] {
+    background-color: #232345 !important;
+}
+html.dark .bg-\[\#fffbeb\] {
+    background-color: rgba(251, 191, 36, 0.10) !important;
+}
+html.dark .bg-\[\#fef2f2\] {
+    background-color: rgba(255, 107, 107, 0.10) !important;
+}
+
+/* --- Border merah/hijau/kuning muda (kartu ringkasan utang/pemasukan/pengeluaran, info card) --- */
+html.dark .border-red-200,
+html.dark .border-\[\#ffcdcd\],
+html.dark .border-\[\#fee2e2\] {
+    border-color: rgba(255, 107, 107, 0.35) !important;
+}
+html.dark .border-green-200,
+html.dark .border-\[\#b3c8f0\] {
+    border-color: rgba(111, 143, 255, 0.35) !important;
+}
+html.dark .border-\[\#fde68a\] {
+    border-color: rgba(251, 191, 36, 0.35) !important;
+}
+html.dark .border-\[\#eef3fe\] {
+    border-color: #2a2a45 !important;
+}
+html.dark .border-\[\#0028B3\] {
+    border-color: #6f8fff !important;
+}
+html.dark .border-\[\#dc2626\] {
+    border-color: #ff6b6b !important;
+}
+
+/* --- Tombol biru/merah solid tetap kontras (teksnya sudah putih, cukup pastikan background tidak ketiban rule lain) --- */
+html.dark .bg-\[\#0028B3\] {
+    background-color: #3355e0 !important;
+}
+html.dark .bg-\[\#0028B3\]:hover,
+html.dark .bg-\[\#1557b0\] {
+    background-color: #2a44b8 !important;
+}
+html.dark .bg-\[\#dc2626\] {
+    background-color: #dc2626 !important;
+}
+html.dark .bg-\[\#b91c1c\] {
+    background-color: #b91c1c !important;
+}
+html.dark .bg-\[\#FF4444\] {
+    background-color: #e53e3e !important;
+}
+
+/* --- Category tag & item tag (halaman Pengaturan -- Kelola Kategori) --- */
+html.dark .category-tag {
+    background: #232345 !important;
+    color: #6f8fff !important;
+}
+html.dark .item-tag {
+    background: #232338 !important;
+    color: #e2e8f0 !important;
+    border-color: #33334f !important;
+}
+
+/* --- Pie chart "lubang tengah" di Alokasi Kategori (defaultnya putih solid, harus ikut gelap) --- */
+html.dark #pieChart + .bg-white {
+    background-color: #1e1e32 !important;
+}
+
+/* --- Skeleton/placeholder lingkaran progress kesehatan finansial --- */
+html.dark svg .text-\[\#d6e0f5\] {
+    color: #2a2a45 !important;
+}
+
+/* --- Modal konfirmasi hapus dompet / hapus data (ikon warning, dsb) --- */
+html.dark .modal-overlay {
+    background: rgba(0, 0, 0, 0.65) !important;
+}
+html.dark .modal-box {
+    background: #1e1e32 !important;
+}
+
+/* --- Checkbox mode hapus dompet --- */
+html.dark #walletListContainer .border-\[\#d6e0f5\] {
+    border-color: #33334f !important;
+}

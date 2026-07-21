@@ -29,46 +29,114 @@ let onboardingFinished = (localStorage.getItem('mysaku_onboarding_completed') ==
 // ==========================================
 // --- MODUL MULTI-DOMPET --------------------
 // ==========================================
+// Dompet sekarang DINAMIS -- user bisa tambah/hapus dompet sendiri dari halaman Laporan.
+// Daftar dompet disimpan di localStorage ('mysaku_wallets') supaya persist & bisa diedit.
+// DEFAULT_WALLETS tetap dipertahankan sebagai daftar bawaan awal (dipakai saat pertama kali
+// install atau saat reset data / tutorial).
 
-// Daftar dompet yang tersedia
-const WALLETS = ['Cash', 'BCA', 'DANA', 'GoPay', 'OVO', 'Mandiri'];
+const DEFAULT_WALLETS = ['Cash', 'BCA', 'DANA', 'GoPay', 'OVO', 'Mandiri'];
+
+// Ambil daftar dompet yang sedang ada (custom + bawaan yang belum dihapus user)
+function getWallets() {
+    const raw = localStorage.getItem('mysaku_wallets');
+    if (!raw) {
+        // Belum pernah diatur -> pakai daftar bawaan & simpan supaya konsisten ke depannya
+        localStorage.setItem('mysaku_wallets', JSON.stringify(DEFAULT_WALLETS));
+        return DEFAULT_WALLETS.slice();
+    }
+    try {
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) && parsed.length > 0 ? parsed : DEFAULT_WALLETS.slice();
+    } catch (e) {
+        return DEFAULT_WALLETS.slice();
+    }
+}
+
+function saveWallets(list) {
+    localStorage.setItem('mysaku_wallets', JSON.stringify(list));
+}
+
+function getWalletKey(walletName) {
+    return walletName === 'Cash' ? 'mysaku_balance' : 'mysaku_wallet_' + walletName;
+}
 
 // Fungsi untuk mengambil dompet aktif
 function getActiveWallet() {
-    return localStorage.getItem('mysaku_active_wallet') || 'Cash';
+    const active = localStorage.getItem('mysaku_active_wallet') || 'Cash';
+    // Jaga-jaga kalau dompet aktif ternyata sudah dihapus user -> fallback ke dompet pertama yang ada
+    const wallets = getWallets();
+    if (wallets.includes(active)) return active;
+    const fallback = wallets[0] || 'Cash';
+    localStorage.setItem('mysaku_active_wallet', fallback);
+    return fallback;
 }
 
 // Fungsi untuk mengambil saldo dompet tertentu
 function getWalletBalance(walletName) {
-    if (walletName === 'Cash') {
-        return parseFloat(localStorage.getItem('mysaku_balance') || 0);
-    }
-    const key = 'mysaku_wallet_' + walletName;
-    const val = localStorage.getItem(key);
+    const val = localStorage.getItem(getWalletKey(walletName));
     return val ? parseFloat(val) : 0;
 }
 
 // Fungsi untuk menyimpan saldo ke dompet tertentu
 function setWalletBalance(walletName, newBalance) {
-    if (walletName === 'Cash') {
-        localStorage.setItem('mysaku_balance', newBalance.toString());
-        return;
-    }
-    const key = 'mysaku_wallet_' + walletName;
-    localStorage.setItem(key, newBalance.toString());
+    localStorage.setItem(getWalletKey(walletName), newBalance.toString());
 }
 
 // Cek apakah dompet ini SUDAH PERNAH diatur saldo awalnya (beda dengan saldo = 0)
 function isWalletInitialized(walletName) {
-    const key = walletName === 'Cash' ? 'mysaku_balance' : 'mysaku_wallet_' + walletName;
-    return localStorage.getItem(key) !== null;
+    return localStorage.getItem(getWalletKey(walletName)) !== null;
 }
 
-// Cocokkan nama dompet yang diketik user (tidak peduli huruf besar/kecil) ke nama resmi di WALLETS
+// Cocokkan nama dompet yang diketik user (tidak peduli huruf besar/kecil) ke nama resmi yang ada
 function resolveWalletName(rawName) {
     if (!rawName) return null;
-    const found = WALLETS.find(w => w.toLowerCase() === rawName.toLowerCase());
+    const found = getWallets().find(w => w.toLowerCase() === rawName.toLowerCase());
     return found || null;
+}
+
+// --- Tambah dompet baru (dipanggil dari UI di halaman Laporan) ---
+function addWallet(name) {
+    const trimmed = (name || '').trim();
+    if (!trimmed) return { success: false, message: 'Nama dompet tidak boleh kosong.' };
+    if (trimmed.length > 20) return { success: false, message: 'Nama dompet maksimal 20 karakter.' };
+
+    const wallets = getWallets();
+    if (wallets.some(w => w.toLowerCase() === trimmed.toLowerCase())) {
+        return { success: false, message: 'Dompet dengan nama itu sudah ada.' };
+    }
+
+    wallets.push(trimmed);
+    saveWallets(wallets);
+    return { success: true };
+}
+
+// --- Hapus dompet ---
+// Riwayat transaksi/utang yang sudah tercatat di dompet ini TETAP DISIMPAN (tidak dihapus),
+// hanya saja dompetnya sendiri dikeluarkan dari daftar dompet aktif. Baris riwayat lama akan
+// otomatis ditandai "(dompet dihapus)" saat ditampilkan karena nama dompetnya sudah tidak ada
+// lagi di getWallets() -- lihat isDeletedWallet() di dashboard.js.
+function deleteWallet(name) {
+    let wallets = getWallets();
+    if (wallets.length <= 1) {
+        return { success: false, message: 'Minimal harus ada 1 dompet.' };
+    }
+    if (!wallets.includes(name)) {
+        return { success: false, message: 'Dompet tidak ditemukan.' };
+    }
+
+    wallets = wallets.filter(w => w !== name);
+    saveWallets(wallets);
+
+    // Bersihkan data saldo dompet itu sendiri (bukan riwayat transaksinya -- itu tetap disimpan)
+    localStorage.removeItem(getWalletKey(name));
+
+    // Kalau dompet yang dihapus adalah dompet aktif, pindah ke dompet pertama yang tersisa
+    const activeWallet = localStorage.getItem('mysaku_active_wallet');
+    if (activeWallet === name) {
+        localStorage.setItem('mysaku_active_wallet', wallets[0]);
+    }
+
+    return { success: true };
 }
 
 // --- 2. Fungsi Dasar Chat ---
@@ -509,19 +577,40 @@ function getBotResponse(inputText, walletName) {
     }
 
     // --- UTANG / BAYAR UTANG ---
+    // Catatan: path ini dipakai kalau transaksi hutang dikirim lewat keterangan foto
+    // (lihat btnSendPhoto), bukan chat teks biasa (itu ditangani lebih awal di sendMessage()).
     if (lowerText.includes('utang') || lowerText.includes('hutang')) {
         const amount = parseAmount(inputText);
         if (!amount) return `❌ Format tidak valid. Contoh: <i>"hutang ke Andi 200k"</i>`;
 
         let debt = localStorage.getItem('mysaku_debt') ? parseFloat(localStorage.getItem('mysaku_debt')) : 0;
-        const activeWallet = getActiveWallet();
+        const activeWallet = walletName || getActiveWallet();
 
         if (lowerText.includes('bayar utang') || lowerText.includes('bayar hutang')) {
             if (amount > debt) return `❌ Maaf, total utang kamu hanya <b>Rp ${new Intl.NumberFormat('id-ID').format(debt)}</b>.`;
-            
+
+            const walletBal = getWalletBalance(activeWallet);
+            const walletInitialized = isWalletInitialized(activeWallet);
+            if (!walletInitialized || walletBal < amount) {
+                return `❌ <b>Saldo dompet "${activeWallet}" tidak mencukupi untuk bayar utang!</b><br><br>
+                💳 Saldo saat ini: <b>Rp ${new Intl.NumberFormat('id-ID').format(walletBal)}</b><br>
+                💰 Dibutuhkan: <b>Rp ${new Intl.NumberFormat('id-ID').format(amount)}</b><br><br>
+                <i>Yuk, tambah saldo dulu atau ganti dompet.</i>`;
+            }
+
             debt -= amount;
             localStorage.setItem('mysaku_debt', debt.toString());
             updateBalance(getWalletBalance(activeWallet) - amount);
+            saveDebtEntry({
+                id: Date.now() + '-' + Math.random().toString(36).substr(2, 9),
+                type: 'bayar',
+                amount: amount,
+                person: extractDebtPerson(inputText),
+                wallet: activeWallet,
+                rawText: inputText,
+                date: new Date().toISOString(),
+                remainingDebtAfter: debt
+            });
 
             return `✅ Berhasil bayar utang <b>Rp ${new Intl.NumberFormat('id-ID').format(amount)}</b> dari dompet <b>${activeWallet}</b>.<br>💳 Sisa Utang: <b>Rp ${new Intl.NumberFormat('id-ID').format(debt)}</b>`;
         }
@@ -529,6 +618,17 @@ function getBotResponse(inputText, walletName) {
         debt += amount;
         localStorage.setItem('mysaku_debt', debt.toString());
         updateBalance(getWalletBalance(activeWallet) + amount);
+        saveDebtEntry({
+            id: Date.now() + '-' + Math.random().toString(36).substr(2, 9),
+            type: 'utang',
+            amount: amount,
+            person: extractDebtPerson(inputText),
+            wallet: activeWallet,
+            rawText: inputText,
+            date: new Date().toISOString(),
+            dueDate: null,
+            remainingDebtAfter: debt
+        });
 
         return `✅ Berhasil mencatat hutang sebesar <b>Rp ${new Intl.NumberFormat('id-ID').format(amount)}</b> masuk ke dompet <b>${activeWallet}</b>.<br>💳 Total Utang: <b>Rp ${new Intl.NumberFormat('id-ID').format(debt)}</b>`;
     }
@@ -1076,7 +1176,10 @@ function sendMessage() {
             const walletBal = getWalletBalance(targetWallet);
             const walletInitialized = isWalletInitialized(targetWallet);
 
-            if (walletInitialized && walletBal < amount) {
+            // Saldo tidak cukup kalau: dompetnya belum pernah diisi sama sekali (otomatis 0),
+            // ATAU sudah diisi tapi nominalnya kurang dari yang mau dibayarkan.
+            // (Sebelumnya kondisi ini keliru: dompet yang BELUM diinisialisasi malah lolos validasi.)
+            if (!walletInitialized || walletBal < amount) {
                 const pairId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
                 addMessage(text, 'user', false, '', null, pairId);
                 saveChatMessage(text, 'user', false, '', null, pairId, null, null);
@@ -1085,6 +1188,7 @@ function sendMessage() {
                     const botReply = `❌ <b>Saldo dompet "${targetWallet}" tidak mencukupi untuk bayar utang!</b><br><br>
                     💳 Saldo saat ini: <b>Rp ${new Intl.NumberFormat('id-ID').format(walletBal)}</b><br>
                     💰 Dibutuhkan: <b>Rp ${new Intl.NumberFormat('id-ID').format(amount)}</b><br><br>
+                    <i>Silakan tambah saldo dompet ini dulu, atau ganti ke dompet lain yang saldonya cukup.</i><br><br>
                     <button class="btn-tambah-saldo-modal px-6 py-2 bg-[#0028B3] text-white rounded-full text-sm font-medium shadow-md">➕ Tambah Saldo</button>
                     <button class="btn-cancel-wallet px-4 py-2 bg-gray-200 text-gray-700 rounded-full text-sm shadow-md ml-2">✖ Batal</button>`;
                     addMessage(botReply, 'bot', false, '', null, pairId);
@@ -1253,10 +1357,28 @@ function formatTanggalIndonesia(isoDateStr) {
 
 // ditampilkan sebagai daftar di halaman utang.html - mysaku_debt cuma simpan angka total,
 // tidak cukup untuk menampilkan riwayat detail per orang/tanggal.
+//
+// PENTING: hutang & pembayaran hutang MENGUBAH SALDO DOMPET (nambah saat berutang, ngurang
+// saat bayar), jadi ini juga harus tercatat di mysaku_history (riwayat transaksi utama) --
+// bukan cuma di mysaku_debt_history (yang cuma dipakai halaman utang.html). Satu fungsi ini
+// jadi titik pusat penyimpanan supaya semua pemanggil (catat hutang baru / bayar hutang,
+// baik dari sendMessage maupun getBotResponse) otomatis konsisten.
 function saveDebtEntry(entry) {
     const history = JSON.parse(localStorage.getItem('mysaku_debt_history') || '[]');
     history.unshift(entry);
     localStorage.setItem('mysaku_debt_history', JSON.stringify(history));
+
+    const isNewDebt = entry.type === 'utang';
+    const personLabel = entry.person ? ` ke/dari ${entry.person}` : '';
+    saveTransactionToHistory({
+        type: isNewDebt ? 'pemasukan' : 'pengeluaran',
+        amount: entry.amount,
+        category: isNewDebt ? 'Utang' : 'Bayar Utang',
+        wallet: entry.wallet,
+        rawText: entry.rawText || (isNewDebt ? `Utang${personLabel}` : `Bayar utang${personLabel}`),
+        debtEntryId: entry.id
+    });
+
     return entry.id;
 }
 

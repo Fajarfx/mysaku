@@ -474,3 +474,45 @@ html.dark #jatuhTempoPopupCancel {
     background-color: #2a2a45 !important;
     color: #e2e8f0 !important;
 }
+
+/* ========================================== */
+/* MODE GELAP - PERLUASAN UTILITY UMUM        */
+/* (index.html hanya memuat style.css, tidak dashboard.css, jadi kelas warna generik   */
+/*  yang dipakai di sini -- navbar bawah, judul & border popup -- perlu di-cover di sini juga) */
+/* ========================================== */
+html.dark .text-\[\#1a2236\] {
+    color: #e2e8f0 !important;
+}
+html.dark .text-\[\#6a7fa8\] {
+    color: #8a93b8 !important;
+}
+html.dark .text-\[\#0028B3\] {
+    color: #6f8fff !important;
+}
+html.dark .border-\[\#d6e0f5\] {
+    border-color: #33334f !important;
+}
+html.dark .bg-\[\#f8fafd\] {
+    background-color: #232338 !important;
+}
+html.dark .bg-\[\#0028B3\] {
+    background-color: #3355e0 !important;
+}
+html.dark .bg-\[\#1557b0\] {
+    background-color: #2a44b8 !important;
+}
+html.dark .bg-gray-100 {
+    background-color: #2a2a45 !important;
+}
+html.dark .bg-gray-200 {
+    background-color: #33334f !important;
+}
+html.dark .text-gray-600 {
+    color: #b9c0de !important;
+}
+html.dark nav a.text-\[\#6a7fa8\] {
+    color: #8a93b8 !important;
+}
+html.dark nav a:hover {
+    color: #6f8fff !important;
+}

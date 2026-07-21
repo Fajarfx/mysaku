@@ -85,32 +85,33 @@ const ONBOARDING_STEPS = [
 ];
 
 // Fungsi untuk mereset semua data aplikasi
+// PENTING: Ini juga dipakai untuk membersihkan data LATIHAN yang tercipta selama tutorial
+// (saldo, transaksi, utang percobaan) supaya tidak ikut kebawa/"bocor" ke mode REAL
+// begitu user klik "Mulai Menggunakan". Karena itu SEMUA data transaksi/utang/dompet
+// harus disapu bersih di sini -- termasuk mysaku_debt_history & mysaku_debt_reminded,
+// yang sebelumnya kelewatan sehingga utang tutorial masih nongol setelah tutorial selesai.
 function resetAllData() {
     console.log('🧹 Memulai reset semua data...');
-    
-    // Hapus semua data localStorage terkait MySaku
-    const keysToRemove = [
-        'mysaku_balance',
-        'mysaku_active_wallet',
-        'mysaku_history',
-        'mysaku_chat_messages',
-        'mysaku_debt'
-    ];
-    
-    // Hapus semua dompet
-    const WALLETS = ['Cash', 'BCA', 'DANA', 'GoPay', 'OVO', 'Mandiri'];
-    WALLETS.forEach(w => {
-        if (w === 'Cash') {
-            localStorage.removeItem('mysaku_balance');
-        } else {
-            localStorage.removeItem('mysaku_wallet_' + w);
-        }
-    });
-    
-    keysToRemove.forEach(key => {
-        localStorage.removeItem(key);
-    });
-    
+
+    // Hapus semua data localStorage terkait MySaku KECUALI preferensi/pengaturan
+    // yang memang harus tetap ada lintas reset (tema, kategori kustom, dsb).
+    const keysToPreserve = new Set([
+        'mysaku_dark_mode',
+        'mysaku_notifications',
+        'mysaku_categories',
+        'mysaku_items',
+        'mysaku_item_dictionary',
+        'mysaku_onboarding_completed'
+    ]);
+
+    Object.keys(localStorage)
+        .filter(k => k.startsWith('mysaku_') && !keysToPreserve.has(k))
+        .forEach(k => localStorage.removeItem(k));
+
+    // Dompet direset ke daftar bawaan (custom wallet yang ditambah user saat tutorial ikut hilang)
+    localStorage.setItem('mysaku_wallets', JSON.stringify(DEFAULT_WALLETS.slice()));
+    localStorage.setItem('mysaku_active_wallet', 'Cash');
+
     // Reset variabel global - PASTIKAN INI
     currentBalance = null;
     currentDebt = 0;

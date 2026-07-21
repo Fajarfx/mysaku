@@ -2,26 +2,104 @@
 // --- DASHBOARD LOGIC REAL-TIME (FINAL) ---
 // ==========================================
 
-// --- Daftar Dompet yang Tersedia ---
-const WALLETS = ['Cash', 'BCA', 'DANA', 'GoPay', 'OVO', 'Mandiri'];
+// --- Daftar Dompet (DINAMIS) ---
+// Dompet bisa ditambah/dihapus sendiri oleh user (lihat halaman Laporan -> daftar dompet).
+// Daftar bawaan dipakai hanya sebagai fallback saat 'mysaku_wallets' belum pernah diisi.
+const DEFAULT_WALLETS = ['Cash', 'BCA', 'DANA', 'GoPay', 'OVO', 'Mandiri'];
+
+function getWallets() {
+    const raw = localStorage.getItem('mysaku_wallets');
+    if (!raw) {
+        localStorage.setItem('mysaku_wallets', JSON.stringify(DEFAULT_WALLETS));
+        return DEFAULT_WALLETS.slice();
+    }
+    try {
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) && parsed.length > 0 ? parsed : DEFAULT_WALLETS.slice();
+    } catch (e) {
+        return DEFAULT_WALLETS.slice();
+    }
+}
+
+function saveWallets(list) {
+    localStorage.setItem('mysaku_wallets', JSON.stringify(list));
+}
+
+function getWalletKey(walletName) {
+    return walletName === 'Cash' ? 'mysaku_balance' : 'mysaku_wallet_' + walletName;
+}
 
 // --- Fungsi Baca Data ---
 function getActiveWallet() {
-    return localStorage.getItem('mysaku_active_wallet') || 'Cash';
+    const active = localStorage.getItem('mysaku_active_wallet') || 'Cash';
+    const wallets = getWallets();
+    if (wallets.includes(active)) return active;
+    const fallback = wallets[0] || 'Cash';
+    localStorage.setItem('mysaku_active_wallet', fallback);
+    return fallback;
 }
 
 function getWalletBalance(walletName) {
-    if (walletName === 'Cash') {
-        return parseFloat(localStorage.getItem('mysaku_balance') || 0);
-    }
-    const key = 'mysaku_wallet_' + walletName;
-    const val = localStorage.getItem(key);
+    const val = localStorage.getItem(getWalletKey(walletName));
     return val ? parseFloat(val) : 0;
+}
+
+function setWalletBalance(walletName, newBalance) {
+    localStorage.setItem(getWalletKey(walletName), newBalance.toString());
+}
+
+// Nama dompet yang PERNAH dipakai di riwayat transaksi/utang tapi sudah tidak ada lagi
+// di daftar dompet aktif (karena dihapus user). Dipakai untuk menandai "(dompet dihapus)".
+function isDeletedWallet(walletName) {
+    if (!walletName) return false;
+    return !getWallets().includes(walletName);
+}
+
+function walletDisplayName(walletName) {
+    const name = walletName || 'Cash';
+    return isDeletedWallet(name) ? `${name} (dompet dihapus)` : name;
+}
+
+// --- Tambah / Hapus Dompet ---
+function addWallet(name) {
+    const trimmed = (name || '').trim();
+    if (!trimmed) return { success: false, message: 'Nama dompet tidak boleh kosong.' };
+    if (trimmed.length > 20) return { success: false, message: 'Nama dompet maksimal 20 karakter.' };
+
+    const wallets = getWallets();
+    if (wallets.some(w => w.toLowerCase() === trimmed.toLowerCase())) {
+        return { success: false, message: 'Dompet dengan nama itu sudah ada.' };
+    }
+
+    wallets.push(trimmed);
+    saveWallets(wallets);
+    return { success: true };
+}
+
+function deleteWallet(name) {
+    let wallets = getWallets();
+    if (wallets.length <= 1) {
+        return { success: false, message: 'Minimal harus ada 1 dompet.' };
+    }
+    if (!wallets.includes(name)) {
+        return { success: false, message: 'Dompet tidak ditemukan.' };
+    }
+
+    wallets = wallets.filter(w => w !== name);
+    saveWallets(wallets);
+    localStorage.removeItem(getWalletKey(name));
+
+    const activeWallet = localStorage.getItem('mysaku_active_wallet');
+    if (activeWallet === name) {
+        localStorage.setItem('mysaku_active_wallet', wallets[0]);
+    }
+
+    return { success: true };
 }
 
 function getTotalAllWallets() {
     let total = 0;
-    WALLETS.forEach(w => {
+    getWallets().forEach(w => {
         total += getWalletBalance(w);
     });
     return total;
@@ -95,7 +173,7 @@ function renderTransactionRow(item) {
             </div>
             <div class="text-right flex-shrink-0">
                 <p class="text-sm font-semibold ${nominalColor}">${nominalStr}</p>
-                <p class="text-xs text-chat-secondary">${item.wallet || 'Cash'}</p>
+                <p class="text-xs text-chat-secondary">${walletDisplayName(item.wallet)}</p>
             </div>
         </div>
     `;
@@ -148,7 +226,7 @@ function openTransactionDetail(id) {
             </div>
             <div class="flex justify-between">
                 <span class="text-chat-secondary">Dompet</span>
-                <span class="font-medium text-[#1a2236]">${item.wallet || 'Cash'}</span>
+                <span class="font-medium text-[#1a2236]">${walletDisplayName(item.wallet)}</span>
             </div>
             <div class="flex justify-between">
                 <span class="text-chat-secondary">Tanggal</span>
@@ -270,6 +348,117 @@ function setupLaporanPreviewFilters() {
 
 // Menghitung & menampilkan badge tren arus kas (net = pemasukan - pengeluaran) dompet aktif,
 // membandingkan bulan berjalan vs bulan sebelumnya.
+// ==========================================
+// --- KESEHATAN FINANSIAL (dihitung dari data transaksi user, TANPA angka hardcode) ---
+// ==========================================
+// Skor 0-100 dibangun dari 3 komponen yang semuanya diturunkan dari mysaku_history +
+// saldo dompet + total utang -- bukan angka tetap:
+//   1. Rasio Tabungan (bobot 50): (pemasukan - pengeluaran) / pemasukan pada 30 hari terakhir.
+//      Menabung >=20% dari pemasukan dianggap skor penuh di komponen ini.
+//   2. Rasio Utang terhadap Aset (bobot 30): total utang dibanding total saldo semua dompet.
+//      Utang 0 = skor penuh; utang >= total saldo (atau saldo <=0 dengan ada utang) = skor 0.
+//   3. Konsistensi Pencatatan (bobot 20): berapa hari dalam 30 hari terakhir user benar-benar
+//      mencatat transaksi. Dianggap "aktif mencatat" kalau tercatat transaksi di >=15 dari 30 hari.
+function calculateFinancialHealth(history, totalAssets, totalDebt) {
+    const now = Date.now();
+    const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
+    const recent = history.filter(item => (now - new Date(item.date).getTime()) <= THIRTY_DAYS);
+
+    if (history.length === 0) {
+        return { score: null, label: 'Belum Ada Data', detail: 'Belum cukup data transaksi untuk dihitung.' };
+    }
+
+    // --- Komponen 1: Rasio Tabungan (30 hari terakhir) ---
+    let income30 = 0, expense30 = 0;
+    recent.forEach(item => {
+        if (item.type === 'pemasukan') income30 += item.amount;
+        else expense30 += item.amount;
+    });
+
+    let savingsScore;
+    let savingsRatioPct = null;
+    if (income30 > 0) {
+        const ratio = (income30 - expense30) / income30; // bisa negatif kalau pengeluaran > pemasukan
+        savingsRatioPct = Math.round(ratio * 100);
+        // >=20% nabung = skor penuh, <=-20% (defisit parah) = skor 0, linear di antaranya
+        const clamped = Math.max(-0.2, Math.min(0.2, ratio));
+        savingsScore = ((clamped + 0.2) / 0.4) * 50;
+    } else {
+        // Tidak ada pemasukan tercatat 30 hari terakhir -> tidak bisa dinilai positif
+        savingsScore = expense30 > 0 ? 0 : 25;
+    }
+
+    // --- Komponen 2: Rasio Utang terhadap Aset ---
+    let debtScore;
+    if (totalDebt <= 0) {
+        debtScore = 30;
+    } else if (totalAssets <= 0) {
+        debtScore = 0;
+    } else {
+        const debtRatio = totalDebt / totalAssets;
+        const clamped = Math.max(0, Math.min(1, debtRatio));
+        debtScore = (1 - clamped) * 30;
+    }
+
+    // --- Komponen 3: Konsistensi Pencatatan (30 hari terakhir) ---
+    const daysWithActivity = new Set(recent.map(item => new Date(item.date).toISOString().slice(0, 10))).size;
+    const consistencyScore = Math.min(20, (daysWithActivity / 15) * 20);
+
+    const totalScore = Math.round(savingsScore + debtScore + consistencyScore);
+    const finalScore = Math.max(0, Math.min(100, totalScore));
+
+    let label, dotColor;
+    if (finalScore >= 75) { label = 'Sehat'; dotColor = '#22c55e'; }
+    else if (finalScore >= 50) { label = 'Cukup Sehat'; dotColor = '#eab308'; }
+    else if (finalScore >= 25) { label = 'Perlu Perhatian'; dotColor = '#f97316'; }
+    else { label = 'Waspada'; dotColor = '#dc2626'; }
+
+    const detailParts = [];
+    if (savingsRatioPct !== null) {
+        detailParts.push(savingsRatioPct >= 0
+            ? `Menabung ${savingsRatioPct}% dari pemasukan bulan ini`
+            : `Pengeluaran melebihi pemasukan ${Math.abs(savingsRatioPct)}% bulan ini`);
+    }
+    if (totalDebt > 0) {
+        detailParts.push(`Utang ${formatRupiah(totalDebt)} dari total aset ${formatRupiah(totalAssets)}`);
+    }
+    detailParts.push(`Mencatat transaksi ${daysWithActivity} dari 30 hari terakhir`);
+
+    return { score: finalScore, label, dotColor, detail: detailParts.join(' • ') };
+}
+
+function renderFinancialHealth(history, totalAssets, totalDebt) {
+    const scoreEl = document.getElementById('financialHealthScore');
+    const labelEl = document.getElementById('financialHealthLabel');
+    const dotEl = document.getElementById('financialHealthDot');
+    const ringEl = document.getElementById('financialHealthRing');
+    const detailEl = document.getElementById('financialHealthDetail');
+    if (!scoreEl || !labelEl) return;
+
+    const result = calculateFinancialHealth(history, totalAssets, totalDebt);
+
+    if (result.score === null) {
+        scoreEl.textContent = '-';
+        labelEl.textContent = result.label;
+        if (dotEl) dotEl.style.background = '#94a3b8';
+        if (ringEl) ringEl.style.strokeDashoffset = '175.9';
+        if (detailEl) detailEl.textContent = result.detail;
+        return;
+    }
+
+    scoreEl.textContent = result.score;
+    labelEl.textContent = result.label;
+    if (dotEl) dotEl.style.background = result.dotColor;
+    if (detailEl) detailEl.textContent = result.detail;
+
+    if (ringEl) {
+        const circumference = 175.9; // 2 * PI * r(28), sama seperti nilai stroke-dasharray di HTML
+        const offset = circumference - (result.score / 100) * circumference;
+        ringEl.style.stroke = result.dotColor;
+        ringEl.style.strokeDashoffset = offset.toString();
+    }
+}
+
 function updateSaldoTrendBadge(history, activeWallet) {
     const badge = document.getElementById('saldoTrendBadge');
     const iconEl = document.getElementById('saldoTrendIcon');
@@ -348,20 +537,76 @@ function renderLaporan() {
     // 2b. Hitung tren arus kas dompet aktif: bulan ini vs bulan lalu
     updateSaldoTrendBadge(history, activeWallet);
 
- // 3. Render Bottom Sheet Daftar Dompet
+    // 2d. Kesehatan Finansial -- dihitung murni dari data transaksi user (lihat calculateFinancialHealth)
+    renderFinancialHealth(history, totalDompet, debt);
+
+ // 3. Render Bottom Sheet Daftar Dompet (bisa tambah & hapus dompet sendiri)
 const walletList = document.getElementById('walletListContainer');
 const modalBtn = document.getElementById('walletSelectorBtn');
 const modal = document.getElementById('walletModal');
 const modalContent = document.getElementById('walletModalContent');
 const closeBtn = document.getElementById('closeWalletModal');
+const deleteModeBtn = document.getElementById('walletDeleteModeBtn');
+const addWalletBtn = document.getElementById('walletAddBtn');
+const walletModalTitle = document.getElementById('walletModalTitle');
+const walletDeleteConfirmBar = document.getElementById('walletDeleteConfirmBar');
+const walletDeleteConfirmBtn = document.getElementById('walletDeleteConfirmBtn');
+const walletDeleteCountLabel = document.getElementById('walletDeleteCountLabel');
 
-if (modalBtn && modal) {
-    // Buka modal
-    modalBtn.onclick = () => {
-        // Render daftar dompet
-        walletList.innerHTML = '';
-        WALLETS.forEach(w => {
-            const balance = getWalletBalance(w);
+let walletModalDeleteMode = false;
+let walletsSelectedForDelete = new Set();
+
+function closeWalletModalAnim() {
+    modalContent.classList.remove('translate-y-0');
+    modalContent.classList.add('translate-y-full');
+    setTimeout(() => {
+        modal.classList.add('hidden');
+        walletModalDeleteMode = false;
+        walletsSelectedForDelete = new Set();
+    }, 300);
+}
+
+function renderWalletModalList() {
+    const activeWallet = getActiveWallet();
+    const wallets = getWallets();
+    walletList.innerHTML = '';
+
+    if (walletModalTitle) {
+        walletModalTitle.textContent = walletModalDeleteMode ? 'Pilih Dompet untuk Dihapus' : 'Pilih Dompet Aktif';
+    }
+    if (deleteModeBtn) {
+        deleteModeBtn.classList.toggle('hidden', walletModalDeleteMode);
+    }
+    if (addWalletBtn) {
+        addWalletBtn.classList.toggle('hidden', walletModalDeleteMode);
+    }
+    if (walletDeleteConfirmBar) {
+        walletDeleteConfirmBar.classList.toggle('hidden', !walletModalDeleteMode);
+    }
+
+    wallets.forEach(w => {
+        const balance = getWalletBalance(w);
+
+        if (walletModalDeleteMode) {
+            const row = document.createElement('div');
+            row.className = 'w-full px-4 py-3 rounded-xl flex justify-between items-center border border-[#d6e0f5] bg-white';
+            const checked = walletsSelectedForDelete.has(w);
+            row.innerHTML = `
+                <label class="flex items-center gap-3 flex-1 cursor-pointer">
+                    <span class="w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 ${checked ? 'bg-[#dc2626] border-[#dc2626]' : 'border-[#d6e0f5]'}">
+                        ${checked ? '<span class="material-symbols-outlined text-white text-[14px]">check</span>' : ''}
+                    </span>
+                    <span class="text-[#1a2236]">${w}</span>
+                </label>
+                <span class="text-chat-secondary text-sm">${formatRupiah(balance)}</span>
+            `;
+            row.querySelector('label').onclick = () => {
+                if (walletsSelectedForDelete.has(w)) walletsSelectedForDelete.delete(w);
+                else walletsSelectedForDelete.add(w);
+                renderWalletModalList();
+            };
+            walletList.appendChild(row);
+        } else {
             const item = document.createElement('button');
             item.className = `w-full px-4 py-3 rounded-xl text-left flex justify-between items-center transition hover:bg-[#f0f4fe] ${w === activeWallet ? 'bg-[#e6edfb] text-[#0028B3] font-semibold border border-[#b3c8f0]' : 'bg-white text-[#1a2236] border border-transparent'}`;
             item.innerHTML = `
@@ -373,17 +618,27 @@ if (modalBtn && modal) {
             `;
             item.onclick = () => {
                 localStorage.setItem('mysaku_active_wallet', w);
-                modalContent.classList.remove('translate-y-0');
-                modalContent.classList.add('translate-y-full');
-                setTimeout(() => {
-                    modal.classList.add('hidden');
-                }, 300);
+                closeWalletModalAnim();
                 renderLaporan();
             };
             walletList.appendChild(item);
-        });
+        }
+    });
 
-        // Tampilkan modal dengan animasi
+    if (walletModalDeleteMode && walletDeleteCountLabel) {
+        walletDeleteCountLabel.textContent = walletsSelectedForDelete.size > 0
+            ? `Hapus ${walletsSelectedForDelete.size} dompet terpilih`
+            : 'Pilih dompet yang ingin dihapus';
+    }
+}
+
+if (modalBtn && modal) {
+    // Buka modal
+    modalBtn.onclick = () => {
+        walletModalDeleteMode = false;
+        walletsSelectedForDelete = new Set();
+        renderWalletModalList();
+
         modal.classList.remove('hidden');
         setTimeout(() => {
             modalContent.classList.remove('translate-y-full');
@@ -391,24 +646,68 @@ if (modalBtn && modal) {
         }, 10);
     };
 
+    // Masuk mode hapus (tombol tempat sampah di kanan atas)
+    if (deleteModeBtn) {
+        deleteModeBtn.onclick = () => {
+            walletModalDeleteMode = true;
+            walletsSelectedForDelete = new Set();
+            renderWalletModalList();
+        };
+    }
+
+    // Tambah dompet baru
+    if (addWalletBtn) {
+        addWalletBtn.onclick = () => {
+            const name = prompt('Nama dompet baru (contoh: Jenius, SeaBank, dll):');
+            if (name === null) return;
+            const result = addWallet(name);
+            if (!result.success) {
+                alert('❌ ' + result.message);
+                return;
+            }
+            renderWalletModalList();
+        };
+    }
+
+    // Konfirmasi hapus dompet terpilih -- INI PENTING karena menghapus dompet tidak bisa
+    // dibatalkan begitu saja, jadi wajib ada validasi/konfirmasi eksplisit dari user dulu.
+    if (walletDeleteConfirmBtn) {
+        walletDeleteConfirmBtn.onclick = () => {
+            if (walletsSelectedForDelete.size === 0) {
+                alert('Pilih dulu dompet yang ingin dihapus.');
+                return;
+            }
+
+            const namesList = Array.from(walletsSelectedForDelete).join(', ');
+            const anyHasBalance = Array.from(walletsSelectedForDelete).some(w => getWalletBalance(w) !== 0);
+            const warningExtra = anyHasBalance
+                ? '\n\n⚠️ Sebagian dompet ini masih memiliki saldo. Riwayat transaksinya akan TETAP disimpan dan ditandai "(dompet dihapus)", tapi dompetnya sendiri tidak bisa dipakai lagi.'
+                : '';
+            const confirmed = confirm(`Yakin ingin menghapus dompet: ${namesList}?${warningExtra}\n\nTindakan ini tidak bisa dibatalkan.`);
+            if (!confirmed) return;
+
+            let anyFailed = false;
+            walletsSelectedForDelete.forEach(w => {
+                const result = deleteWallet(w);
+                if (!result.success) {
+                    anyFailed = true;
+                    alert('❌ ' + result.message + ' (' + w + ')');
+                }
+            });
+
+            walletModalDeleteMode = false;
+            walletsSelectedForDelete = new Set();
+            renderWalletModalList();
+            renderLaporan();
+        };
+    }
+
     // Tutup modal
-    closeBtn.onclick = () => {
-        modalContent.classList.remove('translate-y-0');
-        modalContent.classList.add('translate-y-full');
-        setTimeout(() => {
-            modal.classList.add('hidden');
-        }, 300);
-    };
+    closeBtn.onclick = closeWalletModalAnim;
 
     // Klik di luar area modal
     modal.onclick = (e) => {
-        if (e.target === modal) {
-            modalContent.classList.remove('translate-y-0');
-            modalContent.classList.add('translate-y-full');
-            setTimeout(() => {
-                modal.classList.add('hidden');
-            }, 300);
-        }
+        if (e.target === modal) closeWalletModalAnim();
     };
 }
 
@@ -621,51 +920,203 @@ function setupRiwayatFilters() {
     // --- Klik transaksi untuk lihat detail ---
     attachTransactionClickHandler(document.getElementById('transaksiList'));
 
-    // --- Ekspor ke Excel (CSV) sesuai filter yang sedang aktif ---
+    // --- Ekspor ke Excel (.xlsx asli, per bulan) ---
     const exportBtn = document.getElementById('exportExcelBtn');
     if (exportBtn) {
-        exportBtn.onclick = exportRiwayatToExcel;
+        exportBtn.onclick = openExportMonthModal;
+    }
+
+    const closeExportBtn = document.getElementById('closeExportMonthModal');
+    const exportModal = document.getElementById('exportMonthModal');
+    if (closeExportBtn) closeExportBtn.onclick = closeExportMonthModal;
+    if (exportModal) {
+        exportModal.onclick = (e) => { if (e.target === exportModal) closeExportMonthModal(); };
     }
 }
 
-function exportRiwayatToExcel() {
-    const history = getHistory();
-    const filtered = applyRiwayatFilters(history);
+// ==========================================
+// --- EKSPOR RIWAYAT KE EXCEL (.xlsx), PER BULAN ---
+// ==========================================
+// Diminta: ekspor tidak lagi "semua data sekaligus" -- user pilih SATU bulan lebih dulu,
+// baru file .xlsx untuk bulan itu saja yang diunduh. Tampilan file juga dirapikan
+// (header berwarna, lebar kolom otomatis, format angka Rupiah, sheet ringkasan terpisah)
+// memakai SheetJS (window.XLSX, di-load lewat CDN di riwayat.html).
 
-    if (filtered.length === 0) {
-        alert('Tidak ada transaksi untuk diekspor (sesuai filter yang sedang aktif).');
+const MONTH_NAMES_ID = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+
+function getAvailableExportMonths(history) {
+    const map = new Map(); // key "YYYY-MM" -> { year, month, count }
+    history.forEach(item => {
+        const d = new Date(item.date);
+        const key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+        if (!map.has(key)) {
+            map.set(key, { year: d.getFullYear(), month: d.getMonth(), count: 0 });
+        }
+        map.get(key).count++;
+    });
+    return Array.from(map.entries())
+        .map(([key, val]) => ({ key, ...val }))
+        .sort((a, b) => (a.key < b.key ? 1 : -1)); // terbaru dulu
+}
+
+function openExportMonthModal() {
+    const modal = document.getElementById('exportMonthModal');
+    const sheet = document.getElementById('exportMonthSheet');
+    const listEl = document.getElementById('exportMonthList');
+    if (!modal || !listEl) return;
+
+    const history = getHistory();
+    const months = getAvailableExportMonths(history);
+
+    if (months.length === 0) {
+        listEl.innerHTML = `<p class="text-center text-chat-secondary text-sm py-6">Belum ada transaksi untuk diekspor.</p>`;
+    } else {
+        listEl.innerHTML = months.map(m => `
+            <button class="export-month-btn w-full px-4 py-3 rounded-xl text-left flex justify-between items-center border border-[#d6e0f5] bg-white hover:bg-[#f0f4fe] transition" data-key="${m.key}">
+                <span class="font-medium text-[#1a2236]">${MONTH_NAMES_ID[m.month]} ${m.year}</span>
+                <span class="text-xs text-chat-secondary">${m.count} transaksi</span>
+            </button>
+        `).join('');
+
+        listEl.querySelectorAll('.export-month-btn').forEach(btn => {
+            btn.onclick = () => {
+                const [year, month] = btn.getAttribute('data-key').split('-').map(Number);
+                exportMonthToExcel(year, month - 1, history);
+                closeExportMonthModal();
+            };
+        });
+    }
+
+    modal.classList.remove('hidden');
+    setTimeout(() => {
+        sheet.classList.remove('translate-y-full');
+        sheet.classList.add('translate-y-0');
+    }, 10);
+}
+
+function closeExportMonthModal() {
+    const modal = document.getElementById('exportMonthModal');
+    const sheet = document.getElementById('exportMonthSheet');
+    if (!modal || !sheet) return;
+    sheet.classList.remove('translate-y-0');
+    sheet.classList.add('translate-y-full');
+    setTimeout(() => modal.classList.add('hidden'), 300);
+}
+
+function exportMonthToExcel(year, monthIndex, historyOverride) {
+    if (typeof XLSX === 'undefined') {
+        alert('Gagal memuat modul Excel. Pastikan kamu terhubung ke internet lalu coba lagi.');
         return;
     }
 
-    const headers = ['Tanggal', 'Waktu', 'Tipe', 'Kategori', 'Dompet', 'Catatan', 'Nominal'];
-    const rows = filtered.map(item => {
+    const history = historyOverride || getHistory();
+    const monthItems = history.filter(item => {
+        const d = new Date(item.date);
+        return d.getFullYear() === year && d.getMonth() === monthIndex;
+    }).sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    if (monthItems.length === 0) {
+        alert('Tidak ada transaksi pada bulan yang dipilih.');
+        return;
+    }
+
+    const monthLabel = `${MONTH_NAMES_ID[monthIndex]} ${year}`;
+
+    // --- Sheet 1: Ringkasan ---
+    let totalIncome = 0, totalExpense = 0;
+    const byCategory = {};
+    monthItems.forEach(item => {
+        if (item.type === 'pemasukan') totalIncome += item.amount;
+        else totalExpense += item.amount;
+        const cat = item.category || 'Lainnya';
+        byCategory[cat] = (byCategory[cat] || 0) + (item.type === 'pengeluaran' ? item.amount : 0);
+    });
+
+    const summaryRows = [
+        ['Laporan Keuangan MySaku'],
+        [monthLabel],
+        [],
+        ['Ringkasan', ''],
+        ['Total Pemasukan', totalIncome],
+        ['Total Pengeluaran', totalExpense],
+        ['Arus Kas Bersih', totalIncome - totalExpense],
+        ['Jumlah Transaksi', monthItems.length],
+        [],
+        ['Pengeluaran per Kategori', ''],
+        ...Object.entries(byCategory)
+            .filter(([, v]) => v > 0)
+            .sort((a, b) => b[1] - a[1])
+            .map(([cat, val]) => [cat, val])
+    ];
+
+    const summarySheet = XLSX.utils.aoa_to_sheet(summaryRows);
+    summarySheet['!cols'] = [{ wch: 28 }, { wch: 18 }];
+    summarySheet['!merges'] = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: 1 } },
+        { s: { r: 1, c: 0 }, e: { r: 1, c: 1 } },
+        { s: { r: 3, c: 0 }, e: { r: 3, c: 1 } },
+        { s: { r: 9, c: 0 }, e: { r: 9, c: 1 } }
+    ];
+    styleExportHeaderCell(summarySheet, 'A1', { bold: true, size: 16, color: '0028B3' });
+    styleExportHeaderCell(summarySheet, 'A2', { bold: true, size: 11, color: '6a7fa8' });
+    styleExportHeaderCell(summarySheet, 'A4', { bold: true, fill: 'E6EDFB', color: '0028B3' });
+    styleExportHeaderCell(summarySheet, 'A10', { bold: true, fill: 'E6EDFB', color: '0028B3' });
+    ['B5', 'B6', 'B7'].forEach(cell => { if (summarySheet[cell]) summarySheet[cell].z = '#,##0'; });
+    for (let r = 11; r <= summaryRows.length; r++) {
+        const cell = 'B' + r;
+        if (summarySheet[cell]) summarySheet[cell].z = '#,##0';
+    }
+
+    // --- Sheet 2: Detail Transaksi ---
+    const detailHeader = ['Tanggal', 'Waktu', 'Tipe', 'Kategori', 'Dompet', 'Catatan', 'Nominal (Rp)'];
+    const detailRows = monthItems.map(item => {
         const d = new Date(item.date);
         return [
             d.toLocaleDateString('id-ID'),
             d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
             item.type === 'pemasukan' ? 'Pemasukan' : 'Pengeluaran',
             item.category || 'Lainnya',
-            item.wallet || 'Cash',
-            (item.rawText || '').replace(/"/g, '""'),
-            item.amount
+            walletDisplayName(item.wallet),
+            item.rawText || '',
+            item.type === 'pemasukan' ? item.amount : -item.amount
         ];
     });
 
-    let csv = headers.join(';') + '\n';
-    rows.forEach(row => {
-        csv += row.map(val => `"${val}"`).join(';') + '\n';
-    });
+    const detailSheet = XLSX.utils.aoa_to_sheet([detailHeader, ...detailRows]);
+    detailSheet['!cols'] = [
+        { wch: 12 }, { wch: 8 }, { wch: 12 }, { wch: 14 }, { wch: 16 }, { wch: 32 }, { wch: 16 }
+    ];
+    detailSheet['!autofilter'] = { ref: `A1:G${detailRows.length + 1}` };
 
-    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    const todayStr = new Date().toISOString().slice(0, 10);
-    link.href = url;
-    link.download = `mysaku-riwayat-${todayStr}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    // Header row styling
+    detailHeader.forEach((_, i) => {
+        const cellRef = XLSX.utils.encode_cell({ r: 0, c: i });
+        styleExportHeaderCell(detailSheet, cellRef, { bold: true, fill: '0028B3', color: 'FFFFFF' });
+    });
+    // Format kolom nominal + warna merah untuk pengeluaran (nilai negatif)
+    for (let r = 1; r <= detailRows.length; r++) {
+        const cellRef = 'G' + (r + 1);
+        if (detailSheet[cellRef]) {
+            detailSheet[cellRef].z = '#,##0;[Red]-#,##0';
+        }
+    }
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, summarySheet, 'Ringkasan');
+    XLSX.utils.book_append_sheet(workbook, detailSheet, 'Detail Transaksi');
+
+    const fileMonth = String(monthIndex + 1).padStart(2, '0');
+    XLSX.writeFile(workbook, `mysaku-riwayat-${year}-${fileMonth}.xlsx`);
+}
+
+// Helper kecil untuk styling sel (pakai xlsx-js-style, bukan xlsx community biasa yang
+// tidak mendukung styling sama sekali)
+function styleExportHeaderCell(sheet, cellRef, { bold, size, color, fill } = {}) {
+    if (!sheet[cellRef]) sheet[cellRef] = { t: 's', v: '' };
+    sheet[cellRef].s = {
+        font: { bold: !!bold, sz: size || 12, color: { rgb: color || '1A2236' } },
+        fill: fill ? { patternType: 'solid', fgColor: { rgb: fill } } : undefined
+    };
 }
 
 function renderRiwayat() {
@@ -851,7 +1302,7 @@ function openDebtDetail(id) {
             </div>` : ''}
             <div class="flex justify-between">
                 <span class="text-chat-secondary">Dompet</span>
-                <span class="font-medium text-[#1a2236]">${item.wallet || 'Cash'}</span>
+                <span class="font-medium text-[#1a2236]">${walletDisplayName(item.wallet)}</span>
             </div>
             <div class="flex justify-between">
                 <span class="text-chat-secondary">Tanggal</span>

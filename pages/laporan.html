@@ -57,11 +57,29 @@
 <div id="walletModal" class="fixed inset-0 bg-black/40 z-[999] hidden items-end justify-center">
     <div class="bg-white w-full max-w-[400px] rounded-t-2xl p-6 pb-8 transform transition-transform duration-300 translate-y-full" id="walletModalContent">
         <div class="w-12 h-1 bg-gray-300 rounded-full mx-auto mb-4"></div>
-        <h3 class="text-lg font-bold text-[#1a2236] mb-4 text-center">Pilih Dompet Aktif</h3>
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-bold text-[#1a2236]" id="walletModalTitle">Pilih Dompet Aktif</h3>
+            <button id="walletDeleteModeBtn" class="text-[#dc2626] hover:bg-red-50 p-1.5 rounded-lg transition" title="Hapus dompet">
+                <span class="material-symbols-outlined">delete</span>
+            </button>
+        </div>
         <div id="walletListContainer" class="space-y-2 max-h-[300px] overflow-y-auto">
             <!-- Akan diisi oleh JavaScript -->
         </div>
-        <button id="closeWalletModal" class="mt-4 w-full py-3 bg-gray-100 text-gray-600 rounded-xl font-medium hover:bg-gray-200 transition">Tutup</button>
+
+        <!-- Tombol tambah dompet (mode normal) -->
+        <button id="walletAddBtn" class="mt-3 w-full py-2.5 rounded-xl border-2 border-dashed border-[#d6e0f5] text-sm text-[#0028B3] font-medium hover:bg-[#f0f4fe] transition flex items-center justify-center gap-2">
+            <span class="material-symbols-outlined text-[18px]">add</span>
+            Tambah Dompet
+        </button>
+
+        <!-- Bar konfirmasi hapus (muncul saat mode hapus aktif) -->
+        <div id="walletDeleteConfirmBar" class="hidden mt-3 space-y-2">
+            <p class="text-xs text-chat-secondary text-center" id="walletDeleteCountLabel">Pilih dompet yang ingin dihapus</p>
+            <button id="walletDeleteConfirmBtn" class="w-full py-3 bg-[#dc2626] text-white rounded-xl font-medium hover:bg-[#b91c1c] transition">Hapus Dompet Terpilih</button>
+        </div>
+
+        <button id="closeWalletModal" class="mt-3 w-full py-3 bg-gray-100 text-gray-600 rounded-xl font-medium hover:bg-gray-200 transition">Tutup</button>
     </div>
 </div>
 
@@ -100,22 +118,25 @@
 </a>
 </div>
 
-    <!-- Card 3: Kesehatan Finansial -->
-    <div class="chat-card p-4 flex items-center justify-between">
-      <div>
-        <p class="font-semibold text-[#1a2236]">Kesehatan Finansial</p>
-        <div class="flex items-center gap-2 mt-1">
-          <span class="inline-block w-3 h-3 bg-green-500 rounded-full animate-pulse"></span>
-          <span class="text-sm font-medium text-[#1a2236]">Sehat</span>
+    <!-- Card 3: Kesehatan Finansial (dihitung dari data transaksi asli, lihat calculateFinancialHealth() di dashboard.js) -->
+    <div class="chat-card p-4">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="font-semibold text-[#1a2236]">Kesehatan Finansial</p>
+          <div class="flex items-center gap-2 mt-1">
+            <span class="inline-block w-3 h-3 rounded-full" id="financialHealthDot"></span>
+            <span class="text-sm font-medium text-[#1a2236]" id="financialHealthLabel">-</span>
+          </div>
+        </div>
+        <div class="relative flex items-center justify-center w-16 h-16">
+          <svg class="w-full h-full transform -rotate-90">
+            <circle class="text-[#d6e0f5]" cx="32" cy="32" fill="transparent" r="28" stroke="currentColor" stroke-width="5" />
+            <circle id="financialHealthRing" class="text-[#0028B3]" cx="32" cy="32" fill="transparent" r="28" stroke="currentColor" stroke-dasharray="175.9" stroke-dashoffset="175.9" stroke-width="5" style="transition: stroke-dashoffset 0.5s ease;" />
+          </svg>
+          <span class="absolute font-bold text-sm text-[#1a2236]" id="financialHealthScore">-</span>
         </div>
       </div>
-      <div class="relative flex items-center justify-center w-16 h-16">
-        <svg class="w-full h-full transform -rotate-90">
-          <circle class="text-[#d6e0f5]" cx="32" cy="32" fill="transparent" r="28" stroke="currentColor" stroke-width="5" />
-          <circle class="text-[#0028B3]" cx="32" cy="32" fill="transparent" r="28" stroke="currentColor" stroke-dasharray="175.9" stroke-dashoffset="26" stroke-width="5" />
-        </svg>
-        <span class="absolute font-bold text-sm text-[#1a2236]">85</span>
-      </div>
+      <p class="text-xs text-chat-secondary mt-3 pt-3 border-t border-[#eef3fe]" id="financialHealthDetail">Belum cukup data transaksi untuk dihitung.</p>
     </div>
 
 
