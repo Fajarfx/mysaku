@@ -5,6 +5,12 @@
     <meta content="width=device-width, initial-scale=1.0, viewport-fit=cover" name="viewport" />
     <title>MySaku · Riwayat Transaksi</title>
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script>
+        // Terapkan mode gelap sebelum halaman dirender, supaya tidak "kedip" putih dulu
+        if (localStorage.getItem('mysaku_dark_mode') === 'true') {
+            document.documentElement.classList.add('dark');
+        }
+    </script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&family=Manrope:wght@400;600;700&display=swap" rel="stylesheet" />
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="../css/dashboard.css" />
@@ -49,21 +55,13 @@
 <body class="bg-chat-light text-[#1a2236] antialiased font-body">
 
     <!-- Header (Kembali ke Laporan) -->
-    <header class="fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-[400px] z-50 header-light flex justify-between items-center px-4 h-14">
-        <div class="flex items-center gap-3">
-            <!-- Tombol kembali ke halaman laporan -->
-            <a href="/pages/laporan.html" class="flex items-center gap-3">
-                <span class="material-symbols-outlined text-[#0028B3]">arrow_back</span>
-            </a>
-            <div class="w-9 h-9 rounded-full bg-[#e6edfb] overflow-hidden flex items-center justify-center border border-[#b3c8f0]">
-                <span class="material-symbols-outlined text-[#0028B3] text-xl">account_circle</span>
-            </div>
-            <h1 class="font-bold text-lg text-[#1a2236]">MySaku</h1>
-        </div>
-        <div class="flex gap-3">
-            <span class="material-symbols-outlined text-[#6a7fa8]">search</span>
-            <span class="material-symbols-outlined text-[#6a7fa8]">more_vert</span>
-        </div>
+    <header class="fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-[400px] z-50 header-light flex items-center gap-3 px-4 h-14">
+        <a href="/pages/laporan.html" class="flex items-center">
+            <span class="material-symbols-outlined text-[#0028B3]">arrow_back</span>
+        </a>
+        <h1 class="font-extrabold text-xl tracking-tight">
+            <span class="text-[#0028B3]">My</span><span class="text-[#1a2236]">Saku</span>
+        </h1>
     </header>
 
     <main class="pt-20 pb-28 px-4 max-w-lg mx-auto space-y-4">
@@ -74,8 +72,14 @@
                 <h2 class="text-xl font-bold text-[#1a2236]">Riwayat Transaksi</h2>
                 <p class="text-sm text-chat-secondary">Semua transaksi dalam satu tempat</p>
             </div>
-            <div class="bg-[#e6edfb] px-3 py-1 rounded-full text-xs font-medium text-[#0028B3]">
-                <span id="totalTransaksi">0</span> transaksi
+            <div class="flex items-center gap-2">
+                <button id="exportExcelBtn" class="flex items-center gap-1 bg-[#0028B3] text-white px-3 py-1.5 rounded-full text-xs font-medium">
+                    <span class="material-symbols-outlined text-[16px]">file_download</span>
+                    Ekspor
+                </button>
+                <div class="bg-[#e6edfb] px-3 py-1 rounded-full text-xs font-medium text-[#0028B3]">
+                    <span id="totalTransaksi">0</span> transaksi
+                </div>
             </div>
         </div>
 
@@ -98,10 +102,10 @@
         <!-- Filter Rentang Waktu (Hanya Hiasan, Logika Akan Menyusul) -->
         <div class="chat-card p-4 space-y-3">
             <div class="flex gap-2 overflow-x-auto no-scrollbar">
+                <button class="date-btn px-4 py-1.5 rounded-full text-xs font-medium whitespace-nowrap date-btn-inactive" data-hari="1">1 Hari</button>
                 <button class="date-btn px-4 py-1.5 rounded-full text-xs font-medium whitespace-nowrap date-btn-active" data-hari="7">7 Hari</button>
                 <button class="date-btn px-4 py-1.5 rounded-full text-xs font-medium whitespace-nowrap date-btn-inactive" data-hari="14">14 Hari</button>
                 <button class="date-btn px-4 py-1.5 rounded-full text-xs font-medium whitespace-nowrap date-btn-inactive" data-hari="30">30 Hari</button>
-                <button class="date-btn px-4 py-1.5 rounded-full text-xs font-medium whitespace-nowrap date-btn-inactive" data-hari="90">90 Hari</button>
                 <button class="date-btn px-4 py-1.5 rounded-full text-xs font-medium whitespace-nowrap date-btn-inactive" data-hari="semua">Semua</button>
             </div>
         </div>
@@ -109,9 +113,13 @@
         <!-- Filter Kategori (Hanya Hiasan) -->
         <div class="chat-card p-4 space-y-3">
             <div class="flex gap-2 overflow-x-auto no-scrollbar">
-                <button class="filter-btn px-4 py-1.5 rounded-full text-xs font-medium whitespace-nowrap btn-filter-active" data-filter="semua">Semua</button>
-                <button class="filter-btn px-4 py-1.5 rounded-full text-xs font-medium whitespace-nowrap btn-filter-inactive" data-filter="pemasukan">💚 Pemasukan</button>
-                <button class="filter-btn px-4 py-1.5 rounded-full text-xs font-medium whitespace-nowrap btn-filter-inactive" data-filter="pengeluaran">❤️ Pengeluaran</button>
+                <button class="filter-btn px-4 py-1.5 rounded-full text-xs font-medium whitespace-nowrap btn-filter-active flex items-center gap-1" data-filter="semua">Semua</button>
+                <button class="filter-btn px-4 py-1.5 rounded-full text-xs font-medium whitespace-nowrap btn-filter-inactive flex items-center gap-1" data-filter="pemasukan" data-filter-color="income">
+                    <span class="material-symbols-outlined text-[14px]">arrow_downward</span> Pemasukan
+                </button>
+                <button class="filter-btn px-4 py-1.5 rounded-full text-xs font-medium whitespace-nowrap btn-filter-inactive flex items-center gap-1" data-filter="pengeluaran" data-filter-color="expense">
+                    <span class="material-symbols-outlined text-[14px]">arrow_upward</span> Pengeluaran
+                </button>
                 <button class="filter-btn px-4 py-1.5 rounded-full text-xs font-medium whitespace-nowrap btn-filter-inactive" data-filter="makanan">🍽️ Makanan</button>
                 <button class="filter-btn px-4 py-1.5 rounded-full text-xs font-medium whitespace-nowrap btn-filter-inactive" data-filter="transportasi">🚗 Transportasi</button>
                 <button class="filter-btn px-4 py-1.5 rounded-full text-xs font-medium whitespace-nowrap btn-filter-inactive" data-filter="lainnya">📦 Lainnya</button>
@@ -139,6 +147,20 @@
 
     </main>
 
+    <!-- MODAL DETAIL TRANSAKSI -->
+    <div id="txDetailModal" class="fixed inset-0 bg-black/40 z-[999] hidden items-end justify-center">
+        <div class="bg-white w-full max-w-[400px] rounded-t-2xl p-6 pb-8 max-h-[85vh] overflow-y-auto transform transition-transform duration-300 translate-y-full" id="txDetailSheet">
+            <div class="w-12 h-1 bg-gray-300 rounded-full mx-auto mb-4"></div>
+            <div class="flex justify-between items-center mb-2">
+                <h3 class="text-lg font-bold text-[#1a2236]">Detail Transaksi</h3>
+                <button id="closeTxDetail" class="text-chat-secondary">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <div id="txDetailBody"></div>
+        </div>
+    </div>
+
     <!-- Bottom Navigation (Sesuai Laporan) -->
    <nav class="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[400px] flex justify-around items-center h-16 px-4 bg-white/95 backdrop-blur-xl border-t border-[#d6e0f5] z-50">
         <a href="/index.html" class="flex flex-col items-center text-[#6a7fa8] hover:text-[#0028B3] transition-colors">
@@ -153,7 +175,7 @@
             <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">history</span>
             <span class="text-[10px] font-medium">Riwayat</span>
         </a>
-        <a href="#" class="flex flex-col items-center text-[#6a7fa8] hover:text-[#0028B3] transition-colors">
+        <a href="/pages/pengaturan.html" class="flex flex-col items-center text-[#6a7fa8] hover:text-[#0028B3] transition-colors">
             <span class="material-symbols-outlined">settings</span>
             <span class="text-[10px] font-medium">Pengaturan</span>
         </a>

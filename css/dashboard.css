@@ -74,3 +74,78 @@ main {
 .bar-expense { background: #FF4444; }
 .bar-income-bg { background: rgba(0, 40, 179, 0.08); }
 .bar-expense-bg { background: rgba(255, 68, 68, 0.08); }
+
+/* ========================================= */
+/* MODE GELAP - LAPORAN, RIWAYAT, UTANG, PENGATURAN */
+/* ========================================= */
+html.dark body {
+    background-color: #14141f;
+    color: #e2e8f0;
+}
+html.dark .bg-chat-light {
+    background: #14141f;
+}
+html.dark .header-light {
+    background: rgba(26, 26, 46, 0.95);
+    border-bottom: 1px solid #2a2a45;
+}
+html.dark .chat-card {
+    background: #1e1e32;
+    border: 1px solid #2a2a45;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
+}
+html.dark .chat-card-accent {
+    background: #232345;
+    border: 1px solid #33336a;
+}
+html.dark .text-chat-secondary {
+    color: #8a93b8;
+}
+html.dark .text-\[\#1a2236\] {
+    color: #e2e8f0;
+}
+html.dark input,
+html.dark select,
+html.dark textarea {
+    background: #232338 !important;
+    border-color: #33334f !important;
+    color: #e2e8f0 !important;
+}
+html.dark input::placeholder {
+    color: #6b7394 !important;
+}
+html.dark nav {
+    background: rgba(20, 20, 31, 0.95) !important;
+    border-top: 1px solid #2a2a45 !important;
+}
+html.dark .bg-white,
+html.dark .bg-white\/95 {
+    background-color: #1e1e32 !important;
+}
+html.dark .border-\[\#d6e0f5\] {
+    border-color: #2a2a45 !important;
+}
+html.dark #walletModal .bg-white,
+html.dark #debtDetailModal .bg-white,
+html.dark #txDetailModal .bg-white {
+    background-color: #1e1e32 !important;
+}
+html.dark .bg-\[\#eef3fe\] {
+    background-color: #232345 !important;
+}
+html.dark .bg-\[\#e6edfb\] {
+    background-color: #232345 !important;
+}
+html.dark .bg-\[\#f8fafd\] {
+    background-color: #232338 !important;
+}
+html.dark .bg-gray-100 {
+    background-color: #2a2a45 !important;
+}
+html.dark .bg-gray-200 {
+    background-color: #33334f !important;
+}
+html.dark .text-gray-600,
+html.dark .text-gray-700 {
+    color: #b9c0de !important;
+}

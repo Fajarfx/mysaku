@@ -367,3 +367,110 @@ nav{
     cursor: not-allowed !important;
     opacity: 0.5 !important;
 }
+
+/* ========================================== */
+/* MODE GELAP - HALAMAN CHAT                  */
+/* ========================================== */
+html.dark body {
+    background-color: #14141f;
+}
+html.dark .chat-container {
+    background-color: #1a1a2e;
+    border-color: #2a2a45;
+}
+html.dark .header {
+    background-color: #1a1a2e;
+    border-bottom: 1px solid #2a2a45;
+    color: #e2e8f0;
+}
+html.dark .header-right:hover {
+    background-color: #232338;
+}
+html.dark .chat-area {
+    background-color: #1a1a2e;
+}
+html.dark .bubble.bot {
+    background-color: #232338;
+    color: #e2e8f0;
+}
+html.dark .bubble.user {
+    background-color: #3355e0;
+    color: #ffffff;
+}
+html.dark .footer {
+    background-color: #1a1a2e;
+    border-top: 1px solid #2a2a45;
+}
+html.dark .menu-icon {
+    color: #e2e8f0;
+}
+html.dark .menu-icon:hover {
+    background-color: #232338;
+}
+html.dark .input-wrapper {
+    background-color: #232338;
+}
+html.dark .input-wrapper input {
+    color: #e2e8f0;
+}
+html.dark .input-wrapper input::placeholder {
+    color: #6b7394;
+}
+html.dark .input-wrapper input:disabled {
+    background: #1e1e32;
+    color: #6b7394;
+}
+html.dark nav {
+    background: rgba(26, 26, 46, 0.95);
+    border-top: 1px solid #2a2a45;
+}
+html.dark .overlay {
+    background: rgba(0, 0, 0, 0.7);
+}
+html.dark .bottom-sheet {
+    background: #1e1e32;
+    color: #e2e8f0;
+}
+html.dark .bottom-sheet h3 {
+    color: #e2e8f0;
+}
+html.dark .sheet-input {
+    background: #232338;
+    border-color: #33334f;
+    color: #e2e8f0;
+}
+html.dark .ctx-menu,
+html.dark .top-menu {
+    background: #1e1e32;
+    color: #e2e8f0;
+}
+html.dark .ctx-item:hover,
+html.dark .top-menu-item:hover {
+    background: #232338;
+}
+html.dark .date-divider span {
+    background-color: #232338;
+    color: #b9c0de;
+}
+html.dark .message-time {
+    color: #6b7394;
+}
+html.dark #saldoPopup .bg-white,
+html.dark #jatuhTempoPopup .bg-white {
+    background-color: #1e1e32 !important;
+}
+html.dark #saldoPopup h3,
+html.dark #jatuhTempoPopup h3 {
+    color: #e2e8f0 !important;
+}
+html.dark #saldoPopupInput,
+html.dark #jatuhTempoPopupInput {
+    background-color: #232338 !important;
+    border-color: #33334f !important;
+    color: #e2e8f0 !important;
+}
+html.dark #saldoPopupCancel,
+html.dark #jatuhTempoPopupCancel {
+    background-color: #2a2a45 !important;
+    color: #e2e8f0 !important;
+}

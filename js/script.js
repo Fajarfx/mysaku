@@ -187,6 +187,25 @@ function addMessage(text, sender, isImage = false, imageUrl = '', transactionDat
             };
         }
     }
+    if (sender === 'bot' && text && text.includes('btn-jatuh-tempo-ya')) {
+        const yaBtn = row.querySelector('.btn-jatuh-tempo-ya');
+        if (yaBtn) {
+            yaBtn.onclick = (e) => {
+                e.stopPropagation();
+                openJatuhTempoPopup();
+            };
+        }
+    }
+    if (sender === 'bot' && text && text.includes('btn-jatuh-tempo-tidak')) {
+        const tidakBtn = row.querySelector('.btn-jatuh-tempo-tidak');
+        if (tidakBtn) {
+            tidakBtn.onclick = (e) => {
+                e.stopPropagation();
+                bubble.innerHTML = '👌 Oke, tanpa jatuh tempo.';
+                finalizeDebtRecord(null);
+            };
+        }
+    }
 
     attachLongPressEvent(row, sender);
     return row;
@@ -700,6 +719,25 @@ function loadChatMessages() {
                 };
             }
         }
+        if (msg.sender === 'bot' && msg.text && msg.text.includes('btn-jatuh-tempo-ya')) {
+            const yaBtn = row.querySelector('.btn-jatuh-tempo-ya');
+            if (yaBtn) {
+                yaBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    openJatuhTempoPopup();
+                };
+            }
+        }
+        if (msg.sender === 'bot' && msg.text && msg.text.includes('btn-jatuh-tempo-tidak')) {
+            const tidakBtn = row.querySelector('.btn-jatuh-tempo-tidak');
+            if (tidakBtn) {
+                tidakBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    bubble.innerHTML = '👌 Oke, tanpa jatuh tempo.';
+                    finalizeDebtRecord(null);
+                };
+            }
+        }
     });
     chatArea.scrollTop = chatArea.scrollHeight;
 }
@@ -833,13 +871,13 @@ function sendMessage() {
             else if (onboardingStep === 4) {
                 const isCekUtang = lowerText.includes('cek utang') || lowerText.includes('cek hutang') || lowerText.includes('total utang') || lowerText.includes('total hutang');
                 if ((lowerText.includes('utang') || lowerText.includes('hutang')) && !isCekUtang) {
-                    onboardingStep++;
+                    // Jangan langsung lompat ke pesan penutup di sini -- pencatatan utang
+                    // masih menunggu user menjawab pertanyaan jatuh tempo (Ya/Tidak).
+                    // Step baru benar-benar naik & pesan penutup baru dikirim setelah
+                    // finalizeDebtRecord()/pembayaran utang selesai (lihat advanceOnboardingAfterDebt()).
                     stepProcessed = true;
                     isCorrectCommand = true;
-                    console.log('🎉 Onboarding SELESAI! Step 4 → 5 (utang tercatat)');
-                    setTimeout(() => {
-                        sendOnboardingStep();
-                    }, 2000);
+                    console.log('⏳ Step 4: utang sedang diproses, menunggu konfirmasi jatuh tempo sebelum lanjut ke step 5.');
                 } else {
                     // Beri tahu user harus mencatat utang
                     setTimeout(() => {
@@ -954,7 +992,8 @@ function sendMessage() {
         return;
     }
 
-    // --- PERINTAH UTANG (kecuali "cek utang" / "total utang" -> itu bukan pencatatan, tapi cuma cek nominal) ---
+
+// --- PERINTAH UTANG (kecuali "cek utang" / "total utang" -> itu bukan pencatatan, tapi cuma cek nominal) ---
     if ((lowerText.includes('utang') || lowerText.includes('hutang')) && !lowerText.includes('cek utang') && !lowerText.includes('cek hutang') && !lowerText.includes('total utang') && !lowerText.includes('total hutang')) {
         const amount = parseAmount(text);
 
@@ -975,8 +1014,38 @@ function sendMessage() {
 
         if (isBayarUtang) {
             const debtNow = currentDebt;
+            const targetPerson = extractDebtPerson(text);
 
-            if (amount > debtNow) {
+            // --- Kalau user menyebut nama orang, cari dulu apakah ada hutang ke orang itu ---
+            if (targetPerson) {
+                const outstanding = getOutstandingDebtForPerson(targetPerson);
+
+                if (outstanding <= 0) {
+                    const pairId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+                    addMessage(text, 'user', false, '', null, pairId);
+                    saveChatMessage(text, 'user', false, '', null, pairId, null, null);
+                    userInput.value = '';
+                    setTimeout(() => {
+                        const botReply = `❌ Hutang ke <b>${targetPerson}</b> tidak ditemukan. Silakan cek di riwayat hutang.`;
+                        addMessage(botReply, 'bot', false, '', null, pairId);
+                        saveChatMessage(botReply, 'bot', false, '', null, pairId, null, null);
+                    }, 1000);
+                    return;
+                }
+
+                if (amount > outstanding) {
+                    const pairId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+                    addMessage(text, 'user', false, '', null, pairId);
+                    saveChatMessage(text, 'user', false, '', null, pairId, null, null);
+                    userInput.value = '';
+                    setTimeout(() => {
+                        const botReply = `❌ Maaf, hutang ke <b>${targetPerson}</b> cuma <b>Rp ${new Intl.NumberFormat('id-ID').format(outstanding)}</b>.`;
+                        addMessage(botReply, 'bot', false, '', null, pairId);
+                        saveChatMessage(botReply, 'bot', false, '', null, pairId, null, null);
+                    }, 1000);
+                    return;
+                }
+            } else if (amount > debtNow) {
                 const pairId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
                 addMessage(text, 'user', false, '', null, pairId);
                 saveChatMessage(text, 'user', false, '', null, pairId, null, null);
@@ -1013,30 +1082,50 @@ function sendMessage() {
             updateDebt(newDebt);
             setWalletBalance(targetWallet, walletBal - amount);
             currentBalance = getWalletBalance(getActiveWallet());
+            saveDebtEntry({
+                id: Date.now() + '-' + Math.random().toString(36).substr(2, 9),
+                type: 'bayar',
+                amount: amount,
+                person: targetPerson,
+                wallet: targetWallet,
+                rawText: text,
+                date: new Date().toISOString(),
+                remainingDebtAfter: newDebt
+            });
 
             const pairId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
             addMessage(text, 'user', false, '', null, pairId);
             saveChatMessage(text, 'user', false, '', null, pairId, null, null);
             userInput.value = '';
             setTimeout(() => {
-                const botReply = `✅ Berhasil bayar utang <b>Rp ${new Intl.NumberFormat('id-ID').format(amount)}</b> dari dompet <b>${targetWallet}</b>.<br>💳 Sisa Utang: <b>Rp ${new Intl.NumberFormat('id-ID').format(newDebt)}</b>`;
+                const personLine = targetPerson ? ` ke <b>${targetPerson}</b>` : '';
+                const botReply = `✅ Berhasil bayar utang${personLine} <b>Rp ${new Intl.NumberFormat('id-ID').format(amount)}</b> dari dompet <b>${targetWallet}</b>.<br>💳 Sisa Utang: <b>Rp ${new Intl.NumberFormat('id-ID').format(newDebt)}</b>`;
                 addMessage(botReply, 'bot', false, '', null, pairId);
                 saveChatMessage(botReply, 'bot', false, '', null, pairId, null, null);
+
+                // Kalau sedang tutorial step 5 (catat utang), lanjutkan setelah pelunasan berhasil
+                advanceOnboardingAfterDebt();
             }, 1000);
             return;
         }
 
-        const newDebt = currentDebt + amount;
-        updateDebt(newDebt);
-        setWalletBalance(targetWallet, getWalletBalance(targetWallet) + amount);
-        currentBalance = getWalletBalance(getActiveWallet());
+        // --- Jangan langsung dicatat -- tanya dulu soal jatuh tempo ---
+        pendingDebtEntry = {
+            amount: amount,
+            person: extractDebtPerson(text),
+            wallet: targetWallet,
+            rawText: text
+        };
 
         const pairId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
         addMessage(text, 'user', false, '', null, pairId);
         saveChatMessage(text, 'user', false, '', null, pairId, null, null);
         userInput.value = '';
         setTimeout(() => {
-            const botReply = `✅ Berhasil mencatat hutang sebesar <b>Rp ${new Intl.NumberFormat('id-ID').format(amount)}</b> masuk ke dompet <b>${targetWallet}</b>.<br>💳 Total Utang: <b>Rp ${new Intl.NumberFormat('id-ID').format(newDebt)}</b>`;
+            const botReply = `📅 Oke, hutang <b>Rp ${new Intl.NumberFormat('id-ID').format(amount)}</b>${pendingDebtEntry.person ? ' ke <b>' + pendingDebtEntry.person + '</b>' : ''} akan dicatat.<br><br>
+            Apakah hutang ini punya tanggal jatuh tempo?<br><br>
+            <button class="btn-jatuh-tempo-ya px-5 py-2 bg-[#0028B3] text-white rounded-full text-sm font-medium shadow-md">✅ Ya, ada</button>
+            <button class="btn-jatuh-tempo-tidak px-5 py-2 bg-gray-200 text-gray-700 rounded-full text-sm shadow-md ml-2">❌ Tidak ada</button>`;
             addMessage(botReply, 'bot', false, '', null, pairId);
             saveChatMessage(botReply, 'bot', false, '', null, pairId, null, null);
         }, 1000);
@@ -1095,6 +1184,106 @@ function sendMessage() {
     }, 1000);
 }
 
+// ==========================================
+// --- MODUL UTANG (helper, di-scope global) ---
+// ==========================================
+// Catatan: fungsi-fungsi ini SEBELUMNYA berada di dalam sendMessage(), sehingga
+// pendingDebtEntry & finalizeDebtRecord ter-redeclare tiap kali sendMessage() dipanggil
+// dan tidak bisa diakses dari luar (mis. dari listener tombol popup jatuh tempo).
+// Akibatnya klik "OK" di popup tanggal tidak pernah benar-benar mencatat hutangnya.
+// Sekarang di-scope di level modul supaya konsisten diakses dari mana saja.
+
+// Menyimpan sementara detail hutang yang lagi ditanya jatuh temponya (menunggu user pilih Ya/Tidak)
+let pendingDebtEntry = null;
+
+// Benar-benar mencatat hutang ke localStorage + update saldo dompet + total utang.
+// Dipanggil setelah user menjawab pertanyaan jatuh tempo (baik pilih Ya maupun Tidak).
+function finalizeDebtRecord(dueDate) {
+    if (!pendingDebtEntry) return;
+    const { amount, person, wallet, rawText } = pendingDebtEntry;
+
+    const newDebt = currentDebt + amount;
+    updateDebt(newDebt);
+    setWalletBalance(wallet, getWalletBalance(wallet) + amount);
+    currentBalance = getWalletBalance(getActiveWallet());
+    saveDebtEntry({
+        id: Date.now() + '-' + Math.random().toString(36).substr(2, 9),
+        type: 'utang',
+        amount: amount,
+        person: person,
+        wallet: wallet,
+        rawText: rawText,
+        date: new Date().toISOString(),
+        dueDate: dueDate || null,
+        remainingDebtAfter: newDebt
+    });
+
+    const pairId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+    const dueDateLine = dueDate ? `<br>📅 Jatuh tempo: <b>${formatTanggalIndonesia(dueDate)}</b>` : '';
+    const botReply = `✅ Berhasil mencatat hutang sebesar <b>Rp ${new Intl.NumberFormat('id-ID').format(amount)}</b> masuk ke dompet <b>${wallet}</b>.<br>💳 Total Utang: <b>Rp ${new Intl.NumberFormat('id-ID').format(newDebt)}</b>${dueDateLine}`;
+    addMessage(botReply, 'bot', false, '', null, pairId);
+    saveChatMessage(botReply, 'bot', false, '', null, pairId, null, null);
+
+    pendingDebtEntry = null;
+
+    // Kalau ini terjadi di tengah tutorial step 5 (catat utang), baru sekarang lanjut ke pesan penutup --
+    // supaya "Ya, ada" (nunggu tanggal) tidak bentrok/tabrakan sama pesan akhir tutorial.
+    advanceOnboardingAfterDebt();
+}
+
+function formatTanggalIndonesia(isoDateStr) {
+    const d = new Date(isoDateStr);
+    return d.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+// ditampilkan sebagai daftar di halaman utang.html - mysaku_debt cuma simpan angka total,
+// tidak cukup untuk menampilkan riwayat detail per orang/tanggal.
+function saveDebtEntry(entry) {
+    const history = JSON.parse(localStorage.getItem('mysaku_debt_history') || '[]');
+    history.unshift(entry);
+    localStorage.setItem('mysaku_debt_history', JSON.stringify(history));
+    return entry.id;
+}
+
+// Coba tebak nama orang dari kalimat ("hutang ke Andi 100rb" / "bayar hutang ke Andi 50rb").
+// Kalau kata setelah ke/dari/sama ternyata nama dompet (bca, dana, dst), abaikan -- itu bukan nama orang.
+function extractDebtPerson(text) {
+    const match = text.match(/\b(?:ke|dari|sama)\s+([A-Za-z]+)/i);
+    if (!match) return null;
+    const word = match[1];
+    if (resolveWalletName(word)) return null;
+    return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+}
+
+// Hitung sisa hutang yang masih outstanding ke satu orang tertentu, berdasarkan
+// mysaku_debt_history (jumlah semua entri 'utang' ke orang itu dikurangi semua 'bayar' ke orang itu).
+// Dipakai supaya "bayar hutang ke Andi" bisa tahu apakah memang ada hutang ke Andi sebelum melunasi.
+function getOutstandingDebtForPerson(person) {
+    if (!person) return 0;
+    const history = JSON.parse(localStorage.getItem('mysaku_debt_history') || '[]');
+    const target = person.toLowerCase();
+    let total = 0;
+    history.forEach(item => {
+        if (!item.person || item.person.toLowerCase() !== target) return;
+        if (item.type === 'utang') total += item.amount;
+        else if (item.type === 'bayar') total -= item.amount;
+    });
+    return Math.max(0, total);
+}
+
+// Kalau lagi di tengah tutorial step 5 (index 4) dan pencatatan/pelunasan utang baru saja
+// benar-benar selesai (bukan cuma "diketik"), baru lanjutkan ke pesan penutup tutorial.
+function advanceOnboardingAfterDebt() {
+    if (typeof onboardingStep === 'undefined') return;
+    if (onboardingStep !== 4 || onboardingSkipped || onboardingFinished) return;
+
+    onboardingStep++;
+    console.log('🎉 Onboarding SELESAI! Step 4 → 5 (utang benar-benar tercatat)');
+    setTimeout(() => {
+        sendOnboardingStep();
+    }, 1200);
+}
+
 btnSend.onclick = sendMessage;
 userInput.addEventListener('keypress', function (e) {
     if (e.key === 'Enter') sendMessage();
@@ -1113,7 +1302,82 @@ document.addEventListener('DOMContentLoaded', function() {
             addMessage("Halo! Aku Mysaku, asisten keuanganmu. 👋<br><br>Ketik <b>'bantuan'</b> untuk melihat daftar perintah.", 'bot');
         }
     }
+
+    // Cek pengingat jatuh tempo utang (cuma kalau tutorial sudah selesai, biar tidak ganggu alur onboarding)
+    if (isOnboardingCompleted()) {
+        setTimeout(checkDebtDueReminders, 1200);
+    }
 });
+
+// ==========================================
+// --- PENGINGAT JATUH TEMPO UTANG ---
+// ==========================================
+// Dicek tiap kali halaman chat dibuka (maksimal 1x per hari per entri utang, supaya
+// tidak spam pesan yang sama berulang-ulang tiap kali user buka aplikasi).
+function checkDebtDueReminders() {
+    const history = JSON.parse(localStorage.getItem('mysaku_debt_history') || '[]');
+    const remindedLog = JSON.parse(localStorage.getItem('mysaku_debt_reminded') || '{}');
+    const todayKey = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+
+    // Hitung sisa utang per orang, supaya utang yang sudah lunas tidak diingatkan lagi
+    const outstandingByPerson = {};
+    history.forEach(item => {
+        if (!item.person) return;
+        const key = item.person.toLowerCase();
+        if (!(key in outstandingByPerson)) outstandingByPerson[key] = 0;
+        if (item.type === 'utang') outstandingByPerson[key] += item.amount;
+        else if (item.type === 'bayar') outstandingByPerson[key] -= item.amount;
+    });
+
+    const now = new Date();
+    const dueSoonMs = 3 * 24 * 60 * 60 * 1000; // ingatkan mulai H-3
+
+    const dueEntries = history.filter(item => {
+        if (item.type !== 'utang' || !item.dueDate) return false;
+        const key = item.person ? item.person.toLowerCase() : null;
+        const stillOwed = key ? (outstandingByPerson[key] || 0) > 0 : true;
+        if (!stillOwed) return false;
+
+        // Sudah pernah diingatkan hari ini untuk entri ini? skip.
+        if (remindedLog[item.id] === todayKey) return false;
+
+        const due = new Date(item.dueDate);
+        return (due.getTime() - now.getTime()) <= dueSoonMs;
+    });
+
+    if (dueEntries.length === 0) return;
+
+    // Urutkan dari yang paling mendesak (paling telat / paling dekat jatuh temponya)
+    dueEntries.sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+
+    const lines = dueEntries.map(item => {
+        const due = new Date(item.dueDate);
+        const diffDays = Math.ceil((due - now) / (24 * 60 * 60 * 1000));
+        const personLabel = item.person ? ` ke <b>${item.person}</b>` : '';
+        const amountLabel = `<b>Rp ${new Intl.NumberFormat('id-ID').format(item.amount)}</b>`;
+        let statusLabel;
+        if (diffDays < 0) {
+            statusLabel = `⚠️ <b>Telat ${Math.abs(diffDays)} hari</b>`;
+        } else if (diffDays === 0) {
+            statusLabel = `⚠️ <b>Jatuh tempo hari ini</b>`;
+        } else {
+            statusLabel = `⏰ Jatuh tempo ${diffDays} hari lagi (${formatTanggalIndonesia(item.dueDate)})`;
+        }
+        return `• Hutang${personLabel} ${amountLabel} — ${statusLabel}`;
+    });
+
+    const botReply = `🔔 <b>Pengingat Jatuh Tempo Utang</b><br><br>${lines.join('<br>')}<br><br>Ketik <i>"bayar hutang [nominal] ke [nama]"</i> untuk melunasi.`;
+
+    const pairId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+    addMessage(botReply, 'bot', false, '', null, pairId);
+    saveChatMessage(botReply, 'bot', false, '', null, pairId, null, null);
+
+    // Tandai semua entri ini sudah diingatkan hari ini
+    dueEntries.forEach(item => {
+        remindedLog[item.id] = todayKey;
+    });
+    localStorage.setItem('mysaku_debt_reminded', JSON.stringify(remindedLog));
+}
 
 // ==========================================
 // --- MODUL PARSER KEUANGAN ---
@@ -1195,7 +1459,20 @@ function parseWallet(text) {
     return 'Cash';
 }
 
-let itemDictionary = { 'bakso aci': 'Makanan', 'indomie': 'Makanan', 'pertalite': 'Transportasi' };
+// Item bawaan aplikasi + item kustom yang ditambahkan user lewat halaman Pengaturan
+// (disimpan di localStorage 'mysaku_item_dictionary' oleh pengaturan.js). Dibaca ulang
+// setiap parsing transaksi supaya perubahan di halaman Pengaturan langsung berlaku di chat.
+const DEFAULT_ITEM_DICTIONARY = { 'bakso aci': 'Makanan', 'indomie': 'Makanan', 'pertalite': 'Transportasi' };
+
+function getItemDictionary() {
+    let custom = {};
+    try {
+        custom = JSON.parse(localStorage.getItem('mysaku_item_dictionary') || '{}');
+    } catch (e) {
+        custom = {};
+    }
+    return { ...DEFAULT_ITEM_DICTIONARY, ...custom };
+}
 
 function determineTransactionType(text) {
     const clean = text.toLowerCase();
@@ -1214,7 +1491,7 @@ function parseTransaction(userText) {
     const type = determineTransactionType(userText);
     let category = 'Lainnya';
     const textLower = userText.toLowerCase();
-    for (const [item, cat] of Object.entries(itemDictionary)) {
+    for (const [item, cat] of Object.entries(getItemDictionary())) {
         if (textLower.includes(item)) {
             category = cat;
             break;
@@ -1309,6 +1586,69 @@ popup.onclick = (e) => {
         popupInput.value = '';
     }
 };
+
+// ==========================================
+// --- LOGIKA POPUP TANGGAL JATUH TEMPO ------
+// ==========================================
+// Catatan: elemen HTML popup ini (#jatuhTempoPopup, #jatuhTempoPopupInput, dst) perlu
+// ditambahkan di index.html. Kalau elemennya belum ada, fungsi ini akan diam-diam gagal
+// (dicek pakai null-check) supaya tidak bikin error di halaman lain yang belum diupdate.
+
+function openJatuhTempoPopup() {
+    const popup = document.getElementById('jatuhTempoPopup');
+    const input = document.getElementById('jatuhTempoPopupInput');
+    if (!popup || !input) {
+        console.warn('⚠️ Elemen popup jatuh tempo (#jatuhTempoPopup) belum ada di HTML.');
+        return;
+    }
+    popup.classList.remove('hidden');
+    popup.classList.add('flex');
+    // Default tanggal minimal = hari ini
+    const today = new Date().toISOString().split('T')[0];
+    input.min = today;
+    input.value = today;
+    setTimeout(() => input.focus(), 100);
+}
+
+function closeJatuhTempoPopup() {
+    const popup = document.getElementById('jatuhTempoPopup');
+    if (!popup) return;
+    popup.classList.add('hidden');
+    popup.classList.remove('flex');
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const jtPopup = document.getElementById('jatuhTempoPopup');
+    const jtInput = document.getElementById('jatuhTempoPopupInput');
+    const jtOk = document.getElementById('jatuhTempoPopupOk');
+    const jtCancel = document.getElementById('jatuhTempoPopupCancel');
+    if (!jtPopup || !jtInput || !jtOk || !jtCancel) return;
+
+    jtOk.onclick = () => {
+        const val = jtInput.value;
+        if (!val) {
+            alert('Silakan pilih tanggal jatuh tempo.');
+            return;
+        }
+        closeJatuhTempoPopup();
+        finalizeDebtRecord(val);
+    };
+
+    jtCancel.onclick = () => {
+        closeJatuhTempoPopup();
+        // Batal pilih tanggal -> anggap tidak ada jatuh tempo, tetap catat hutangnya
+        finalizeDebtRecord(null);
+    };
+
+    jtPopup.onclick = (e) => {
+        if (e.target === jtPopup) {
+            closeJatuhTempoPopup();
+            finalizeDebtRecord(null);
+        }
+    };
+});
+
+
 
 // --- OVERRIDE: Redirect updateBalance & getBalance ke dompet aktif ---
 const originalUpdateBalance = updateBalance;

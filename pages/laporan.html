@@ -5,6 +5,12 @@
   <meta content="width=device-width, initial-scale=1.0, viewport-fit=cover" name="viewport" />
   <title>MySaku · Laporan Keuangan</title>
   <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script>
+        // Terapkan mode gelap sebelum halaman dirender, supaya tidak "kedip" putih dulu
+        if (localStorage.getItem('mysaku_dark_mode') === 'true') {
+            document.documentElement.classList.add('dark');
+        }
+    </script>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&family=Manrope:wght@400;600;700&display=swap" rel="stylesheet" />
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="../css/dashboard.css">
@@ -13,17 +19,10 @@
 <body class="bg-chat-light text-[#1a2236] antialiased font-body">
 
   <!-- Header -->
-  <header class="fixed top-0 w-full z-50 header-light flex justify-between items-center px-4 h-14">
-    <div class="flex items-center gap-3">
-      <div class="w-9 h-9 rounded-full bg-[#e6edfb] overflow-hidden flex items-center justify-center border border-[#b3c8f0]">
-        <span class="material-symbols-outlined text-[#0028B3] text-xl">account_circle</span>
-      </div>
-      <h1 class="font-bold text-lg text-[#1a2236]">MySaku</h1>
-    </div>
-    <div class="flex gap-3">
-      <span class="material-symbols-outlined text-[#6a7fa8]">notifications</span>
-      <span class="material-symbols-outlined text-[#6a7fa8]">more_vert</span>
-    </div>
+  <header class="fixed top-0 w-full z-50 header-light flex justify-center items-center px-4 h-14">
+    <h1 class="font-extrabold text-xl tracking-tight">
+      <span class="text-[#0028B3]">My</span><span class="text-[#1a2236]">Saku</span>
+    </h1>
   </header>
 
   <main class="pt-20 pb-28 px-4 max-w-lg mx-auto space-y-4">
@@ -45,9 +44,9 @@
             <!-- Saldo Dompet Aktif -->
             <h2 class="text-3xl font-bold text-[#1a2236] saldo-utama">Rp0</h2>
         </div>
-        <span class="chat-badge flex items-center gap-1">
-            <span class="material-symbols-outlined text-[14px]">trending_up</span>
-            +12% bulan ini
+        <span class="chat-badge flex items-center gap-1" id="saldoTrendBadge">
+            <span class="material-symbols-outlined text-[14px]" id="saldoTrendIcon">trending_up</span>
+            <span id="saldoTrendText">Bulan ini</span>
         </span>
     </div>
     <div class="absolute -right-8 -bottom-8 w-32 h-32 bg-[#0028B3]/10 rounded-full blur-3xl"></div>
@@ -86,10 +85,19 @@
     <p class="text-xs text-chat-secondary uppercase tracking-wider">Total Dompet</p>
     <p class="text-xl font-bold text-[#1a2236] mt-1" id="totalDompet">Rp0</p>
   </div>
-<div class="chat-card p-4">
-  <p class="text-xs text-chat-secondary uppercase tracking-wider">Total Utang</p>
-  <p class="text-xl font-bold text-[#d32f2f] mt-1" id="totalUtang">Rp0</p>
-</div>
+<a href="/pages/utang.html" class="chat-card p-4 block active:scale-[0.98] transition relative">
+  <div id="utangDueWarningBadge" class="hidden absolute -top-2 -right-2 bg-[#f59e0b] text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-md items-center gap-1">
+    <span class="material-symbols-outlined text-[12px]">warning</span>
+    <span id="utangDueWarningCount">0</span>
+  </div>
+  <div class="flex items-center justify-between">
+    <div>
+      <p class="text-xs text-chat-secondary uppercase tracking-wider">Total Utang</p>
+      <p class="text-xl font-bold text-[#d32f2f] mt-1" id="totalUtang">Rp0</p>
+    </div>
+    <span class="material-symbols-outlined text-chat-secondary text-lg">chevron_right</span>
+  </div>
+</a>
 </div>
 
     <!-- Card 3: Kesehatan Finansial -->
@@ -278,12 +286,14 @@
     <button onclick="window.location.href='/pages/riwayat.html'" class="text-sm text-[#0028B3] font-medium hover:underline">Lihat Semua</button>
   </div>
 
-  <!-- Filter (Bisa tetap ada untuk hiasan, tapi fungsinya belum aktif) -->
+  <!-- Filter (Berfungsi: Semua / Dompet aktif / Kategori) -->
   <div class="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-    <button class="px-4 py-1.5 rounded-full bg-[#0028B3] text-white text-xs font-medium whitespace-nowrap">Semua</button>
-    <button class="px-4 py-1.5 rounded-full bg-[#eef3fe] text-[#5a6f9a] text-xs font-medium whitespace-nowrap">Dompet</button>
-    <button class="px-4 py-1.5 rounded-full bg-[#eef3fe] text-[#5a6f9a] text-xs font-medium whitespace-nowrap">Kategori</button>
+    <button id="filterPreviewSemua" class="px-4 py-1.5 rounded-full bg-[#0028B3] text-white text-xs font-medium whitespace-nowrap">Semua</button>
+    <button id="filterPreviewDompet" class="px-4 py-1.5 rounded-full bg-[#eef3fe] text-[#5a6f9a] text-xs font-medium whitespace-nowrap">Dompet</button>
+    <button id="filterPreviewKategori" class="px-4 py-1.5 rounded-full bg-[#eef3fe] text-[#5a6f9a] text-xs font-medium whitespace-nowrap">Kategori</button>
   </div>
+  <!-- Chip kategori (muncul saat tombol "Kategori" diklik) -->
+  <div id="previewKategoriChips" class="hidden flex gap-2 overflow-x-auto no-scrollbar pb-1"></div>
 
   <!-- Daftar Riwayat Preview (3 Transaksi Terbaru) -->
   <div class="space-y-3" id="previewRiwayatLaporan">
@@ -292,6 +302,20 @@
 </div>
 
   </main>
+
+  <!-- MODAL DETAIL TRANSAKSI -->
+  <div id="txDetailModal" class="fixed inset-0 bg-black/40 z-[999] hidden items-end justify-center">
+    <div class="bg-white w-full max-w-[400px] rounded-t-2xl p-6 pb-8 max-h-[85vh] overflow-y-auto transform transition-transform duration-300 translate-y-full" id="txDetailSheet">
+      <div class="w-12 h-1 bg-gray-300 rounded-full mx-auto mb-4"></div>
+      <div class="flex justify-between items-center mb-2">
+        <h3 class="text-lg font-bold text-[#1a2236]">Detail Transaksi</h3>
+        <button id="closeTxDetail" class="text-chat-secondary">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <div id="txDetailBody"></div>
+    </div>
+  </div>
 
   <!-- Bottom Navigation -->
  <nav class="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[400px] flex justify-around items-center h-16 px-4 bg-white/95 backdrop-blur-xl border-t border-[#d6e0f5] z-50">

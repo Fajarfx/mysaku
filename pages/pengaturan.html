@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0, viewport-fit=cover" name="viewport" />
+    <title>MySaku · Pengaturan</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script>
+        // Terapkan mode gelap sebelum halaman dirender, supaya tidak "kedip" putih dulu
+        if (localStorage.getItem('mysaku_dark_mode') === 'true') {
+            document.documentElement.classList.add('dark');
+        }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&family=Manrope:wght@400;600;700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../css/dashboard.css" />
+    <style>
+        .setting-item {
+            transition: all 0.2s ease;
+        }
+        .setting-item:hover {
+            background: #f8fafd;
+        }
+        html.dark .setting-item:hover {
+            background: #232338;
+        }
+        html.dark .toggle-switch {
+            background: #33334f;
+        }
+        html.dark .toggle-switch.active {
+            background: #0028B3;
+        }
+        .toggle-switch {
+            width: 44px;
+            height: 24px;
+            background: #d6e0f5;
+            border-radius: 9999px;
+            position: relative;
+            cursor: pointer;
+            transition: background 0.3s ease;
+            flex-shrink: 0;
+        }
+        .toggle-switch.active {
+            background: #0028B3;
+        }
+        .toggle-switch::after {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 20px;
+            height: 20px;
+            background: white;
+            border-radius: 50%;
+            transition: transform 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .toggle-switch.active::after {
+            transform: translateX(20px);
+        }
+        .btn-danger {
+            background: #dc2626;
+            color: white;
+            transition: all 0.2s ease;
+        }
+        .btn-danger:hover {
+            background: #b91c1c;
+        }
+        .btn-secondary {
+            background: #eef3fe;
+            color: #1a2236;
+            transition: all 0.2s ease;
+        }
+        .btn-secondary:hover {
+            background: #dce6fa;
+        }
+        .modal-overlay {
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
+        }
+        .modal-box {
+            animation: slideUp 0.3s ease-out;
+        }
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px) scale(0.95);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+        .category-tag {
+            background: #e6edfb;
+            color: #0028B3;
+            padding: 4px 12px;
+            border-radius: 9999px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .item-tag {
+            background: #f0f4fe;
+            color: #1a2236;
+            padding: 4px 12px;
+            border-radius: 9999px;
+            font-size: 11px;
+            border: 1px solid #d6e0f5;
+        }
+    </style>
+</head>
+<body class="bg-chat-light text-[#1a2236] antialiased font-body">
+
+    <!-- Header -->
+    <header class="fixed top-0 w-full z-50 header-light flex justify-between items-center px-4 h-14">
+        <div class="flex items-center gap-3">
+            <a href="/pages/laporan.html" class="flex items-center gap-3">
+                <span class="material-symbols-outlined text-[#0028B3]">arrow_back</span>
+            </a>
+            <h1 class="font-bold text-lg text-[#1a2236]">Pengaturan</h1>
+        </div>
+    </header>
+
+    <main class="pt-20 pb-28 px-4 max-w-lg mx-auto space-y-4">
+
+        <!-- Card: Preferensi -->
+        <div class="chat-card p-5 space-y-3">
+            <h3 class="font-semibold text-[#1a2236] flex items-center gap-2">
+                <span class="material-symbols-outlined text-[#0028B3] text-xl">settings</span>
+                Preferensi
+            </h3>
+            
+            <!-- Tema -->
+            <div class="setting-item flex items-center justify-between p-3 rounded-xl border border-[#d6e0f5]">
+                <div class="flex items-center gap-3">
+                    <span class="material-symbols-outlined text-chat-secondary">dark_mode</span>
+                    <div>
+                        <p class="text-sm font-medium text-[#1a2236]">Mode Gelap</p>
+                        <p class="text-xs text-chat-secondary">Tampilan malam</p>
+                    </div>
+                </div>
+                <div class="toggle-switch" id="darkModeToggle">
+                    <span class="sr-only">Toggle Dark Mode</span>
+                </div>
+            </div>
+
+            <!-- Notifikasi -->
+            <div class="setting-item flex items-center justify-between p-3 rounded-xl border border-[#d6e0f5]">
+                <div class="flex items-center gap-3">
+                    <span class="material-symbols-outlined text-chat-secondary">notifications</span>
+                    <div>
+                        <p class="text-sm font-medium text-[#1a2236]">Notifikasi</p>
+                        <p class="text-xs text-chat-secondary">Pengingat tagihan</p>
+                    </div>
+                </div>
+                <div class="toggle-switch active" id="notifToggle">
+                    <span class="sr-only">Toggle Notifikasi</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Card: Kategori & Item -->
+        <div class="chat-card p-5 space-y-3">
+            <h3 class="font-semibold text-[#1a2236] flex items-center gap-2">
+                <span class="material-symbols-outlined text-[#0028B3] text-xl">category</span>
+                Kelola Kategori & Item
+            </h3>
+            
+            <p class="text-xs text-chat-secondary">Tambahkan kategori dan item agar bisa dikenali di chat</p>
+
+            <!-- Daftar Kategori -->
+            <div class="space-y-3">
+                <div id="categoryList" class="space-y-2">
+                    <!-- Akan diisi JavaScript -->
+                </div>
+
+                <!-- Tombol Tambah Kategori -->
+                <button id="addCategoryBtn" class="w-full py-2.5 rounded-xl border-2 border-dashed border-[#d6e0f5] text-sm text-[#0028B3] font-medium hover:bg-[#f0f4fe] transition flex items-center justify-center gap-2">
+                    <span class="material-symbols-outlined text-[18px]">add</span>
+                    Tambah Kategori
+                </button>
+            </div>
+        </div>
+
+        <!-- Card: Reset -->
+        <div class="chat-card p-5 space-y-3">
+            <h3 class="font-semibold text-[#1a2236] flex items-center gap-2">
+                <span class="material-symbols-outlined text-[#dc2626] text-xl">refresh</span>
+                Reset
+            </h3>
+
+            <!-- Reset Tutorial -->
+            <div class="setting-item flex items-center justify-between p-3 rounded-xl border border-[#d6e0f5]">
+                <div>
+                    <p class="text-sm font-medium text-[#1a2236]">Reset Panduan</p>
+                    <p class="text-xs text-chat-secondary">Mulai ulang tutorial onboarding</p>
+                </div>
+                <button class="btn-secondary px-4 py-1.5 rounded-full text-sm font-medium" id="resetTutorialBtn">
+                    Reset
+                </button>
+            </div>
+
+            <!-- Hapus Semua Data -->
+            <div class="setting-item flex items-center justify-between p-3 rounded-xl border border-[#fee2e2] bg-[#fef2f2]">
+                <div>
+                    <p class="text-sm font-medium text-[#dc2626]">Hapus Semua Data</p>
+                    <p class="text-xs text-chat-secondary">Hapus transaksi, dompet, dan pengaturan</p>
+                </div>
+                <button class="btn-danger px-4 py-1.5 rounded-full text-sm font-medium" id="deleteAllDataBtn">
+                    Hapus
+                </button>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="text-center py-4">
+            <p class="text-xs text-chat-secondary">MySaku v1.0.0</p>
+        </div>
+
+    </main>
+
+    <!-- Bottom Navigation -->
+    <nav class="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[400px] flex justify-around items-center h-16 px-4 bg-white/95 backdrop-blur-xl border-t border-[#d6e0f5] z-50">
+        <a href="/index.html" class="flex flex-col items-center text-[#6a7fa8] hover:text-[#0028B3] transition-colors">
+            <span class="material-symbols-outlined">chat_bubble</span>
+            <span class="text-[10px] font-medium">Chat</span>
+        </a>
+        <a href="/pages/laporan.html" class="flex flex-col items-center text-[#6a7fa8] hover:text-[#0028B3] transition-colors">
+            <span class="material-symbols-outlined">bar_chart</span>
+            <span class="text-[10px] font-medium">Laporan</span>
+        </a>
+        <a href="/pages/riwayat.html" class="flex flex-col items-center text-[#6a7fa8] hover:text-[#0028B3] transition-colors">
+            <span class="material-symbols-outlined">history</span>
+            <span class="text-[10px] font-medium">Riwayat</span>
+        </a>
+        <a href="/pages/pengaturan.html" class="flex flex-col items-center text-[#0028B3] font-bold">
+            <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">settings</span>
+            <span class="text-[10px] font-medium">Pengaturan</span>
+        </a>
+    </nav>
+
+    <!-- Modal Tambah Kategori -->
+    <div id="categoryModal" class="fixed inset-0 modal-overlay z-[999] hidden items-center justify-center p-4">
+        <div class="modal-box bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl">
+            <h3 class="text-lg font-bold text-[#1a2236] mb-4 text-center">Tambah Kategori</h3>
+            <input type="text" id="categoryNameInput" placeholder="Nama kategori (contoh: Transportasi)" class="w-full p-3 border border-[#d6e0f5] rounded-xl text-sm focus:outline-none focus:border-[#0028B3] bg-[#f8fafd] mb-4">
+            <div class="flex gap-3">
+                <button id="cancelCategoryBtn" class="flex-1 py-3 bg-gray-100 text-gray-600 rounded-xl font-medium hover:bg-gray-200 transition">Batal</button>
+                <button id="saveCategoryBtn" class="flex-1 py-3 bg-[#0028B3] text-white rounded-xl font-medium hover:bg-[#1557b0] transition">Simpan</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Tambah Item -->
+    <div id="itemModal" class="fixed inset-0 modal-overlay z-[999] hidden items-center justify-center p-4">
+        <div class="modal-box bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl">
+            <h3 class="text-lg font-bold text-[#1a2236] mb-4 text-center">Tambah Item</h3>
+            <input type="text" id="itemNameInput" placeholder="Nama item (contoh: bensin)" class="w-full p-3 border border-[#d6e0f5] rounded-xl text-sm focus:outline-none focus:border-[#0028B3] bg-[#f8fafd] mb-3">
+            <select id="itemCategorySelect" class="w-full p-3 border border-[#d6e0f5] rounded-xl text-sm focus:outline-none focus:border-[#0028B3] bg-[#f8fafd] mb-4">
+                <option value="">Pilih kategori...</option>
+            </select>
+            <div class="flex gap-3">
+                <button id="cancelItemBtn" class="flex-1 py-3 bg-gray-100 text-gray-600 rounded-xl font-medium hover:bg-gray-200 transition">Batal</button>
+                <button id="saveItemBtn" class="flex-1 py-3 bg-[#0028B3] text-white rounded-xl font-medium hover:bg-[#1557b0] transition">Simpan</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Konfirmasi Hapus -->
+    <div id="deleteModal" class="fixed inset-0 modal-overlay z-[999] hidden items-center justify-center p-4">
+        <div class="modal-box bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl">
+            <div class="text-center">
+                <div class="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
+                    <span class="material-symbols-outlined text-3xl text-[#dc2626]">warning</span>
+                </div>
+                <h3 class="text-lg font-bold text-[#1a2236] mb-2">Hapus Semua Data?</h3>
+                <p class="text-sm text-chat-secondary mb-4">Tindakan ini tidak dapat dibatalkan!</p>
+                <div class="flex gap-3">
+                    <button id="cancelDeleteBtn" class="flex-1 py-3 bg-gray-100 text-gray-600 rounded-xl font-medium hover:bg-gray-200 transition">Batal</button>
+                    <button id="confirmDeleteBtn" class="flex-1 py-3 bg-[#dc2626] text-white rounded-xl font-medium hover:bg-[#b91c1c] transition">Ya, Hapus</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="../js/dashboard.js"></script>
+    <script src="../js/pengaturan.js"></script>
+</body>
+</html>
