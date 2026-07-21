@@ -19,9 +19,12 @@ const deleteBtn = document.getElementById('deleteBtn');
 
 let selectedMessageElement = null;
 let lastMessageDate = null;
-// Catatan: nilai awal onboardingFinished ditentukan di onboarding.js (isOnboardingCompleted()),
-// karena fungsi itu didefinisikan di sana. Di sini cuma default aman kalau onboarding.js belum sempat load.
-let onboardingFinished = (localStorage.getItem('mysaku_onboarding_completed') === 'true');
+// Catatan: script.js dimuat SEBELUM onboarding.js, jadi baca localStorage langsung di sini
+// (belum bisa panggil isOnboardingCompleted()/loadOnboardingProgress() dari onboarding.js).
+// Ini WAJIB konsisten dengan onboardingStep/onboardingSkipped yang di-restore di onboarding.js,
+// supaya kalau user pindah halaman lalu balik lagi ke tengah tutorial, statusnya tidak balik ke awal.
+let onboardingFinished = (localStorage.getItem('mysaku_onboarding_completed') === 'true') ||
+    (localStorage.getItem('mysaku_onboarding_finished') === 'true');
 
 // ==========================================
 // --- MODUL MULTI-DOMPET --------------------
@@ -453,6 +456,7 @@ function getBotResponse(inputText, walletName) {
         onboardingSkipped = false;
         onboardingStep = 0;
         onboardingFinished = false;
+        saveOnboardingProgress();
         setTimeout(() => startOnboarding(), 300);
         return `👌 Oke, siap-siap ya... <i>(Ketik 'lewati' kapan aja kalau mau langsung pakai aplikasinya.)</i>`;
     }
@@ -461,6 +465,7 @@ function getBotResponse(inputText, walletName) {
         onboardingStep = -999;
         onboardingSkipped = true;
         onboardingFinished = true;
+        saveOnboardingProgress();
         markOnboardingCompleted();
         return `✅ Panduan dilewati. Kamu bisa memulai panduan lagi kapan saja dengan mengetik <i>'panduan'</i>.`;
     }
@@ -765,29 +770,32 @@ function sendMessage() {
     }
 
     // --- DETEKSI KEMAJUAN ONBOARDING ---
-    // HANYA JALAN JIKA SEDANG DALAM MODE TUTORIAL (step 0,1,2,3)
+    // HANYA JALAN JIKA SEDANG DALAM MODE TUTORIAL (step 0,1,2,3,4)
     if (onboardingStep === 0 || onboardingStep === 1 || onboardingStep === 2 || onboardingStep === 3 || onboardingStep === 4) {
         // Pastikan tidak dalam mode skipped atau finished
         if (!onboardingSkipped && !onboardingFinished) {
             console.log('📌 [TUTORIAL] Onboarding step:', onboardingStep, 'Text:', lowerText);
-            
-            let stepProcessed = false;
+
             let isCorrectCommand = false;
-            
+
             // STEP 0: Set Saldo Awal
             if (onboardingStep === 0) {
-                if (lowerText.includes('saldo awal') || lowerText.includes('set saldo')) {
+                isCorrectCommand = lowerText.includes('saldo awal') || lowerText.includes('set saldo');
+                if (isCorrectCommand) {
                     onboardingStep++;
-                    stepProcessed = true;
-                    isCorrectCommand = true;
+                    saveOnboardingProgress();
                     console.log('➡️ Step 0 → 1');
                     setTimeout(() => {
                         sendOnboardingStep();
                     }, 1500);
+                    // Lanjut jatuh ke logika SALDO AWAL di bawah supaya benar-benar tercatat
                 } else {
-                    // Beri tahu user harus mengatur saldo awal dulu
+                    // Bukan perintah yang sesuai step ini -- jangan diproses sebagai transaksi apapun
+                    const pairId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+                    addMessage(text, 'user', false, '', null, pairId);
+                    saveChatMessage(text, 'user', false, '', null, pairId, null, null);
+                    userInput.value = '';
                     setTimeout(() => {
-                        const pairId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
                         const reminder = `💡 <b>Langkah 1: Atur Saldo Awal</b><br><br>
                         Kamu harus mengatur saldo awal dulu sebelum melanjutkan.<br><br>
                         Ketik: <i>"saldo awal 1jt"</i> atau klik tombol di bawah.<br><br>
@@ -795,104 +803,111 @@ function sendMessage() {
                         addMessage(reminder, 'bot', false, '', null, pairId);
                         saveChatMessage(reminder, 'bot', false, '', null, pairId, null, null);
                     }, 1000);
+                    return;
                 }
             }
             // STEP 1: Pemasukan
             else if (onboardingStep === 1) {
-                if (lowerText.includes('terima') || lowerText.includes('gaji') || lowerText.includes('bonus')) {
+                isCorrectCommand = lowerText.includes('terima') || lowerText.includes('gaji') || lowerText.includes('bonus');
+                if (isCorrectCommand) {
                     onboardingStep++;
-                    stepProcessed = true;
-                    isCorrectCommand = true;
+                    saveOnboardingProgress();
                     console.log('➡️ Step 1 → 2');
                     setTimeout(() => {
                         sendOnboardingStep();
                     }, 1500);
                 } else {
-                    // Beri tahu user harus mencatat pemasukan
+                    const pairId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+                    addMessage(text, 'user', false, '', null, pairId);
+                    saveChatMessage(text, 'user', false, '', null, pairId, null, null);
+                    userInput.value = '';
                     setTimeout(() => {
-                        const pairId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
                         const reminder = `💡 <b>Langkah 2: Catat Pemasukan</b><br><br>
                         Kamu harus mencatat pemasukan dulu sebelum melanjutkan.<br><br>
                         Contoh: ketik <i>"terima gaji 3jt"</i>`;
                         addMessage(reminder, 'bot', false, '', null, pairId);
                         saveChatMessage(reminder, 'bot', false, '', null, pairId, null, null);
                     }, 1000);
+                    return;
                 }
             }
             // STEP 2: Pengeluaran
             else if (onboardingStep === 2) {
-                if (lowerText.includes('beli') || lowerText.includes('bayar') || lowerText.includes('makan') || lowerText.includes('minum') || lowerText.includes('transport')) {
+                isCorrectCommand = lowerText.includes('beli') || lowerText.includes('bayar') || lowerText.includes('makan') || lowerText.includes('minum') || lowerText.includes('transport');
+                if (isCorrectCommand) {
                     onboardingStep++;
-                    stepProcessed = true;
-                    isCorrectCommand = true;
+                    saveOnboardingProgress();
                     console.log('➡️ Step 2 → 3');
                     setTimeout(() => {
                         sendOnboardingStep();
                     }, 1500);
                 } else {
-                    // Beri tahu user harus mencatat pengeluaran
+                    const pairId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+                    addMessage(text, 'user', false, '', null, pairId);
+                    saveChatMessage(text, 'user', false, '', null, pairId, null, null);
+                    userInput.value = '';
                     setTimeout(() => {
-                        const pairId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
                         const reminder = `💡 <b>Langkah 3: Catat Pengeluaran</b><br><br>
                         Kamu harus mencatat pengeluaran dulu sebelum melanjutkan.<br><br>
                         Contoh: ketik <i>"beli nasi 20k"</i> atau <i>"bayar listrik 150k"</i>`;
                         addMessage(reminder, 'bot', false, '', null, pairId);
                         saveChatMessage(reminder, 'bot', false, '', null, pairId, null, null);
                     }, 1000);
+                    return;
                 }
             }
             // STEP 3: Ganti Dompet
             else if (onboardingStep === 3) {
                 const walletMatch2 = text.match(/\s(?:ke|pakai|via)\s+(\w+)/i);
-                if (walletMatch2) {
-                    const resolved = resolveWalletName(walletMatch2[1]);
-                    if (resolved) {
-                        onboardingStep++;
-                        stepProcessed = true;
-                        isCorrectCommand = true;
-                        console.log('➡️ Step 3 → 4 (dompet terdeteksi: ' + resolved + ')');
-                        setTimeout(() => {
-                            sendOnboardingStep();
-                        }, 2000);
-                    }
-                } else {
-                    // Beri tahu user harus menyebut dompet tujuan
+                const resolved2 = walletMatch2 ? resolveWalletName(walletMatch2[1]) : null;
+                isCorrectCommand = !!resolved2;
+                if (isCorrectCommand) {
+                    onboardingStep++;
+                    saveOnboardingProgress();
+                    console.log('➡️ Step 3 → 4 (dompet terdeteksi: ' + resolved2 + ')');
                     setTimeout(() => {
-                        const pairId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+                        sendOnboardingStep();
+                    }, 2000);
+                } else {
+                    const pairId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+                    addMessage(text, 'user', false, '', null, pairId);
+                    saveChatMessage(text, 'user', false, '', null, pairId, null, null);
+                    userInput.value = '';
+                    setTimeout(() => {
                         const reminder = `💡 <b>Langkah 4: Ganti Dompet (Opsional)</b><br><br>
                         Kamu harus menyebut dompet tujuan untuk menyelesaikan langkah ini.<br><br>
                         Contoh: ketik <i>"gaji 5jt ke bca"</i> atau <i>"beli makan 20k pakai dana"</i>`;
                         addMessage(reminder, 'bot', false, '', null, pairId);
                         saveChatMessage(reminder, 'bot', false, '', null, pairId, null, null);
                     }, 1000);
+                    return;
                 }
             }
             // STEP 4: Catat Utang
             else if (onboardingStep === 4) {
                 const isCekUtang = lowerText.includes('cek utang') || lowerText.includes('cek hutang') || lowerText.includes('total utang') || lowerText.includes('total hutang');
-                if ((lowerText.includes('utang') || lowerText.includes('hutang')) && !isCekUtang) {
+                isCorrectCommand = (lowerText.includes('utang') || lowerText.includes('hutang')) && !isCekUtang;
+                if (isCorrectCommand) {
                     // Jangan langsung lompat ke pesan penutup di sini -- pencatatan utang
                     // masih menunggu user menjawab pertanyaan jatuh tempo (Ya/Tidak).
                     // Step baru benar-benar naik & pesan penutup baru dikirim setelah
                     // finalizeDebtRecord()/pembayaran utang selesai (lihat advanceOnboardingAfterDebt()).
-                    stepProcessed = true;
-                    isCorrectCommand = true;
                     console.log('⏳ Step 4: utang sedang diproses, menunggu konfirmasi jatuh tempo sebelum lanjut ke step 5.');
+                    // Lanjut jatuh ke logika UTANG di bawah supaya benar-benar tercatat
                 } else {
-                    // Beri tahu user harus mencatat utang
+                    const pairId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+                    addMessage(text, 'user', false, '', null, pairId);
+                    saveChatMessage(text, 'user', false, '', null, pairId, null, null);
+                    userInput.value = '';
                     setTimeout(() => {
-                        const pairId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
                         const reminder = `💡 <b>Langkah 5: Catat Utang</b><br><br>
                         Kamu harus mencatat utang dulu sebelum melanjutkan.<br><br>
                         Contoh: ketik <i>"hutang ke Andi 100rb"</i>`;
                         addMessage(reminder, 'bot', false, '', null, pairId);
                         saveChatMessage(reminder, 'bot', false, '', null, pairId, null, null);
                     }, 1000);
+                    return;
                 }
-            }
-            
-            if (!stepProcessed && !isCorrectCommand && onboardingStep < 5 && onboardingStep >= 0) {
-                console.log('⏳ [TUTORIAL] Step tidak dikenali, menunggu input yang sesuai.');
             }
         } else {
             console.log('💬 [REAL MODE] Onboarding step=' + onboardingStep + ' tapi skipped/finished=true, transaksi normal.');
@@ -1278,6 +1293,7 @@ function advanceOnboardingAfterDebt() {
     if (onboardingStep !== 4 || onboardingSkipped || onboardingFinished) return;
 
     onboardingStep++;
+    saveOnboardingProgress();
     console.log('🎉 Onboarding SELESAI! Step 4 → 5 (utang benar-benar tercatat)');
     setTimeout(() => {
         sendOnboardingStep();

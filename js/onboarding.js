@@ -11,11 +11,35 @@ function markOnboardingCompleted() {
     localStorage.setItem('mysaku_onboarding_completed', 'true');
 }
 
+// --- Simpan progres tutorial (step saat ini) supaya kalau user pindah halaman lalu balik lagi
+// ke chat, tutorial lanjut dari step terakhir -- bukan ngulang dari step 0.
+function saveOnboardingProgress() {
+    localStorage.setItem('mysaku_onboarding_step', String(onboardingStep));
+    localStorage.setItem('mysaku_onboarding_skipped', onboardingSkipped ? 'true' : 'false');
+    localStorage.setItem('mysaku_onboarding_finished', onboardingFinished ? 'true' : 'false');
+}
+
+function loadOnboardingProgress() {
+    if (isOnboardingCompleted()) {
+        return { step: -999, skipped: true, finished: true };
+    }
+    const savedStep = localStorage.getItem('mysaku_onboarding_step');
+    if (savedStep === null) {
+        return { step: 0, skipped: false, finished: false };
+    }
+    return {
+        step: parseInt(savedStep, 10),
+        skipped: localStorage.getItem('mysaku_onboarding_skipped') === 'true',
+        finished: localStorage.getItem('mysaku_onboarding_finished') === 'true'
+    };
+}
+
 // State untuk melacak langkah panduan.
-// Kalau user BELUM PERNAH menyelesaikan tutorial -> mulai dari step 0 (WAJIB jalan).
+// Kalau user BELUM PERNAH menyelesaikan tutorial -> lanjutkan dari step tersimpan (default step 0).
 // Kalau SUDAH PERNAH selesai -> langsung nonaktif (-999), tidak akan pernah otomatis muncul lagi.
-let onboardingStep = isOnboardingCompleted() ? -999 : 0;
-let onboardingSkipped = isOnboardingCompleted();
+const __onboardingProgress = loadOnboardingProgress();
+let onboardingStep = __onboardingProgress.step;
+let onboardingSkipped = __onboardingProgress.skipped;
 
 const ONBOARDING_STEPS = [
     {
@@ -93,6 +117,7 @@ function resetAllData() {
     onboardingStep = -999;          // SET -999 AGAR PASTI TIDAK AKTIF
     onboardingSkipped = true;
     onboardingFinished = true;
+    saveOnboardingProgress();
     
     // Kosongkan chat area
     chatArea.innerHTML = '';
@@ -110,6 +135,7 @@ function startOnboarding() {
     onboardingStep = 0;
     onboardingSkipped = false;
     onboardingFinished = false;
+    saveOnboardingProgress();
     
     // Hapus chat lama
     chatArea.innerHTML = '';
@@ -141,7 +167,8 @@ function sendOnboardingStep() {
     if (onboardingStep >= ONBOARDING_STEPS.length) {
         // Tandai sudah selesai
         onboardingFinished = true;
-        
+        saveOnboardingProgress();
+
         const pairId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
         const botReply = `🎉 <b>Selamat! Kamu sudah selesai mempelajari dasar-dasar MySaku.</b><br><br>
         Sekarang kamu sudah siap mencatat keuangan pribadimu! 💪<br><br>
@@ -151,6 +178,9 @@ function sendOnboardingStep() {
         saveChatMessage(botReply, 'bot', false, '', null, pairId, null, null);
         return;
     }
+
+    // Simpan progres tiap kali pindah ke step baru (langkah ini sudah "resmi" ditampilkan ke user)
+    saveOnboardingProgress();
 
     const step = ONBOARDING_STEPS[onboardingStep];
     const pairId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
