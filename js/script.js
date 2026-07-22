@@ -460,16 +460,69 @@ function openBottomSheet() {
 btnHamburger.onclick = openBottomSheet;
 btnSelectFile.onclick = () => fileInput.click();
 
-fileInput.onchange = (event) => {
-    const file = event.target.files[0];
-    if (file) {
+// Ukuran & kualitas maksimum untuk gambar yang dikirim di chat. localStorage cuma punya
+// kuota sekitar 5-10MB per situs -- foto asli dari kamera HP modern bisa 3-8MB SATU foto saja
+// (base64 encoding-nya bahkan lebih besar ~33% lagi), jadi kalau disimpan mentah-mentah,
+// baru 1-2 foto langsung bikin localStorage.setItem() gagal (QuotaExceededError). Makanya
+// setiap foto WAJIB dikompres & diperkecil dulu sebelum disimpan.
+const CHAT_IMAGE_MAX_DIMENSION = 800; // px, sisi terpanjang
+const CHAT_IMAGE_QUALITY = 0.6; // kualitas JPEG (0-1)
+
+// Baca file gambar, resize ke maksimum CHAT_IMAGE_MAX_DIMENSION px (sisi terpanjang),
+// lalu kompres ke JPEG supaya hasil base64-nya jauh lebih kecil dan aman disimpan di localStorage.
+function compressImageFile(file) {
+    return new Promise((resolve, reject) => {
         const reader = new FileReader();
+        reader.onerror = () => reject(new Error('Gagal membaca file gambar.'));
         reader.onload = (e) => {
-            imagePreview.src = e.target.result;
-            imagePreview.style.display = 'block';
+            const img = new Image();
+            img.onerror = () => reject(new Error('Gagal memuat gambar.'));
+            img.onload = () => {
+                let { width, height } = img;
+                if (width > height && width > CHAT_IMAGE_MAX_DIMENSION) {
+                    height = Math.round(height * (CHAT_IMAGE_MAX_DIMENSION / width));
+                    width = CHAT_IMAGE_MAX_DIMENSION;
+                } else if (height > CHAT_IMAGE_MAX_DIMENSION) {
+                    width = Math.round(width * (CHAT_IMAGE_MAX_DIMENSION / height));
+                    height = CHAT_IMAGE_MAX_DIMENSION;
+                }
+
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+
+                try {
+                    const dataUrl = canvas.toDataURL('image/jpeg', CHAT_IMAGE_QUALITY);
+                    resolve(dataUrl);
+                } catch (err) {
+                    reject(err);
+                }
+            };
+            img.src = e.target.result;
         };
         reader.readAsDataURL(file);
-    }
+    });
+}
+
+fileInput.onchange = (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    imagePreview.style.display = 'none';
+    imagePreview.removeAttribute('data-compress-failed');
+
+    compressImageFile(file)
+        .then((dataUrl) => {
+            imagePreview.src = dataUrl;
+            imagePreview.style.display = 'block';
+        })
+        .catch((err) => {
+            console.error('Gagal mengompres gambar:', err);
+            alert('Gagal memproses gambar ini. Coba pilih foto lain.');
+            fileInput.value = '';
+        });
 };
 
 btnSendPhoto.onclick = () => {
@@ -487,12 +540,25 @@ btnSendPhoto.onclick = () => {
             transactionData.id = newId;
         }
     }
-    
+
     const pairId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
-    
-    addMessage(caption, 'user', true, imagePreview.src, transactionData, pairId);
-    saveChatMessage(caption, 'user', true, imagePreview.src, transactionData ? transactionData.id : null, pairId, transactionData ? transactionData.type : null, transactionData ? transactionData.amount : null);
-    
+    const imageDataUrl = imagePreview.src;
+
+    // Tampilkan dulu di layar (ini tidak kena batas localStorage, jadi selalu berhasil)
+    addMessage(caption, 'user', true, imageDataUrl, transactionData, pairId);
+
+    // Baru coba SIMPAN ke localStorage. Ini yang bisa gagal kalau kuota localStorage penuh
+    // (foto walau sudah dikompres, tetap ada batasnya kalau banyak foto menumpuk dari waktu ke waktu).
+    // Kalau gagal: JANGAN biarkan gagal senyap seperti sebelumnya (transaksi tersimpan tapi
+    // chat/foto hilang tanpa jejak) -- coba simpan ulang TANPA gambar supaya teks & transaksi
+    // tetap persist, dan kasih tahu user secara eksplisit kenapa fotonya tidak tersimpan.
+    const saveResult = saveChatMessage(caption, 'user', true, imageDataUrl, transactionData ? transactionData.id : null, pairId, transactionData ? transactionData.type : null, transactionData ? transactionData.amount : null);
+
+    if (!saveResult.success) {
+        saveChatMessage(caption, 'user', false, '', transactionData ? transactionData.id : null, pairId, transactionData ? transactionData.type : null, transactionData ? transactionData.amount : null);
+        alert('⚠️ Penyimpanan chat sudah penuh, jadi foto ini tidak bisa disimpan permanen (transaksinya tetap tercatat kok). Coba hapus beberapa foto lama di chat, atau buka menu Pengaturan untuk mengelola penyimpanan.');
+    }
+
     closeAllMenus();
     setTimeout(() => {
         let botReply;
@@ -697,13 +763,19 @@ function saveTransactionToHistory(transactionData) {
 // --- SIMPAN & MUAT ULANG CHAT MESSAGES ---
 // ==========================================
 
+// Menyimpan satu pesan chat ke localStorage. Mengembalikan { success: true/false } supaya
+// pemanggil (terutama btnSendPhoto) TAHU kalau penyimpanan gagal dan bisa menangani dengan
+// baik -- sebelumnya fungsi ini tidak mengembalikan apa-apa dan tidak ditangkap errornya,
+// jadi kalau localStorage penuh (paling sering karena base64 foto), exception-nya bikin baris
+// kode setelahnya berhenti dieksekusi secara diam-diam (bug: transaksi tercatat tapi chat/foto
+// hilang tanpa jejak / pesan error).
 function saveChatMessage(text, sender, isImage = false, imageUrl = '', transactionId = null, uniqueId = null, transactionType = null, transactionAmount = null) {
     let messages = localStorage.getItem('mysaku_chat_messages');
     messages = messages ? JSON.parse(messages) : [];
-    
+
     const uid = uniqueId || (Date.now() + '-' + Math.random().toString(36).substr(2, 9));
-    
-    messages.push({
+
+    const entry = {
         uniqueId: uid,
         text: text,
         sender: sender,
@@ -713,10 +785,35 @@ function saveChatMessage(text, sender, isImage = false, imageUrl = '', transacti
         transactionId: transactionId,
         transactionType: transactionType,
         transactionAmount: transactionAmount
-    });
+    };
 
+    messages.push(entry);
     if (messages.length > 50) messages = messages.slice(-50);
-    localStorage.setItem('mysaku_chat_messages', JSON.stringify(messages));
+
+    try {
+        localStorage.setItem('mysaku_chat_messages', JSON.stringify(messages));
+        return { success: true };
+    } catch (err) {
+        console.error('saveChatMessage: localStorage penuh, mencoba memulihkan...', err);
+
+        // Percobaan pemulihan: buang imageUrl dari pesan-pesan LAMA (bukan pesan yang baru saja
+        // ditambahkan) supaya ruang localStorage terbebas, lalu coba simpan ulang sekali lagi.
+        // Foto lama yang sudah pernah dilihat biasanya lebih tidak kritis dibanding transaksi baru.
+        const trimmedMessages = messages.map((m, idx) => {
+            if (idx === messages.length - 1) return m; // pesan yang baru saja dikirim, jangan disentuh
+            if (m.isImage && m.imageUrl) return { ...m, imageUrl: '' };
+            return m;
+        });
+
+        try {
+            localStorage.setItem('mysaku_chat_messages', JSON.stringify(trimmedMessages));
+            console.warn('saveChatMessage: berhasil dipulihkan dengan membuang foto-foto lama.');
+            return { success: true, recovered: true };
+        } catch (err2) {
+            console.error('saveChatMessage: tetap gagal walau sudah dibersihkan.', err2);
+            return { success: false };
+        }
+    }
 }
 
 function loadChatMessages() {
