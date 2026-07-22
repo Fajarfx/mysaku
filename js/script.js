@@ -1441,6 +1441,17 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    // Kalau baru saja dialihkan paksa dari Laporan/Riwayat/Utang/Pengaturan karena tutorial
+    // belum selesai (lihat js/onboarding-guard.js), kasih tahu kenapa -- biar tidak bingung.
+    try {
+        if (sessionStorage.getItem('mysaku_blocked_redirect') === '1') {
+            sessionStorage.removeItem('mysaku_blocked_redirect');
+            setTimeout(() => {
+                addMessage('🔒 Selesaikan dulu panduan singkat ini ya, baru halaman lain bisa dibuka. <i>(Ketik \'lewati\' kalau mau langsung pakai aplikasinya.)</i>', 'bot');
+            }, 400);
+        }
+    } catch (e) { /* abaikan kalau sessionStorage tidak tersedia */ }
+
     // Cek pengingat jatuh tempo utang (cuma kalau tutorial sudah selesai, biar tidak ganggu alur onboarding)
     if (isOnboardingCompleted()) {
         setTimeout(checkDebtDueReminders, 1200);

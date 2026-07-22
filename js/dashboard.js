@@ -1042,6 +1042,8 @@ function exportMonthToExcel(year, monthIndex, historyOverride) {
         ['Arus Kas Bersih', totalIncome - totalExpense],
         ['Jumlah Transaksi', monthItems.length],
         [],
+        ['🟩 Hijau = Pemasukan   🟥 Merah = Pengeluaran (lihat sheet "Detail Transaksi")', ''],
+        [],
         ['Pengeluaran per Kategori', ''],
         ...Object.entries(byCategory)
             .filter(([, v]) => v > 0)
@@ -1055,14 +1057,28 @@ function exportMonthToExcel(year, monthIndex, historyOverride) {
         { s: { r: 0, c: 0 }, e: { r: 0, c: 1 } },
         { s: { r: 1, c: 0 }, e: { r: 1, c: 1 } },
         { s: { r: 3, c: 0 }, e: { r: 3, c: 1 } },
-        { s: { r: 9, c: 0 }, e: { r: 9, c: 1 } }
+        { s: { r: 9, c: 0 }, e: { r: 9, c: 1 } },
+        { s: { r: 11, c: 0 }, e: { r: 11, c: 1 } }
     ];
-    styleExportHeaderCell(summarySheet, 'A1', { bold: true, size: 16, color: '0028B3' });
-    styleExportHeaderCell(summarySheet, 'A2', { bold: true, size: 11, color: '6a7fa8' });
+    styleExportHeaderCell(summarySheet, 'A1', { bold: true, size: 16, color: 'FFFFFF', fill: '0028B3' });
+    styleExportHeaderCell(summarySheet, 'B1', { bold: true, size: 16, color: 'FFFFFF', fill: '0028B3' });
+    styleExportHeaderCell(summarySheet, 'A2', { bold: true, size: 11, color: 'FFFFFF', fill: '3D5FCC' });
+    styleExportHeaderCell(summarySheet, 'B2', { bold: true, size: 11, color: 'FFFFFF', fill: '3D5FCC' });
     styleExportHeaderCell(summarySheet, 'A4', { bold: true, fill: 'E6EDFB', color: '0028B3' });
-    styleExportHeaderCell(summarySheet, 'A10', { bold: true, fill: 'E6EDFB', color: '0028B3' });
+    styleExportHeaderCell(summarySheet, 'B4', { bold: true, fill: 'E6EDFB', color: '0028B3' });
+    styleExportHeaderCell(summarySheet, 'A10', { size: 10, color: '6a7fa8' });
+    styleExportHeaderCell(summarySheet, 'A12', { bold: true, fill: 'E6EDFB', color: '0028B3' });
+    styleExportHeaderCell(summarySheet, 'B12', { bold: true, fill: 'E6EDFB', color: '0028B3' });
+    // Baris Total Pemasukan / Pengeluaran / Arus Kas Bersih diberi warna supaya cepat dibaca sekilas
+    styleExportHeaderCell(summarySheet, 'A5', { fill: 'E9F7EF', color: '1a2236' });
+    styleExportHeaderCell(summarySheet, 'B5', { bold: true, fill: 'E9F7EF', color: '1E8449' });
+    styleExportHeaderCell(summarySheet, 'A6', { fill: 'FDEDEC', color: '1a2236' });
+    styleExportHeaderCell(summarySheet, 'B6', { bold: true, fill: 'FDEDEC', color: 'C0392B' });
+    const netPositive = (totalIncome - totalExpense) >= 0;
+    styleExportHeaderCell(summarySheet, 'A7', { bold: true, fill: netPositive ? 'E9F7EF' : 'FDEDEC', color: '1a2236' });
+    styleExportHeaderCell(summarySheet, 'B7', { bold: true, fill: netPositive ? 'E9F7EF' : 'FDEDEC', color: netPositive ? '1E8449' : 'C0392B' });
     ['B5', 'B6', 'B7'].forEach(cell => { if (summarySheet[cell]) summarySheet[cell].z = '#,##0'; });
-    for (let r = 11; r <= summaryRows.length; r++) {
+    for (let r = 13; r <= summaryRows.length; r++) {
         const cell = 'B' + r;
         if (summarySheet[cell]) summarySheet[cell].z = '#,##0';
     }
@@ -1087,19 +1103,43 @@ function exportMonthToExcel(year, monthIndex, historyOverride) {
         { wch: 12 }, { wch: 8 }, { wch: 12 }, { wch: 14 }, { wch: 16 }, { wch: 32 }, { wch: 16 }
     ];
     detailSheet['!autofilter'] = { ref: `A1:G${detailRows.length + 1}` };
+    // Baris header dikunci (freeze) supaya tetap kelihatan saat scroll ke bawah pada data panjang
+    detailSheet['!freeze'] = { xSplit: 0, ySplit: 1 };
 
     // Header row styling
     detailHeader.forEach((_, i) => {
         const cellRef = XLSX.utils.encode_cell({ r: 0, c: i });
-        styleExportHeaderCell(detailSheet, cellRef, { bold: true, fill: '0028B3', color: 'FFFFFF' });
+        styleExportHeaderCell(detailSheet, cellRef, { bold: true, fill: '0028B3', color: 'FFFFFF', border: true });
     });
-    // Format kolom nominal + warna merah untuk pengeluaran (nilai negatif)
-    for (let r = 1; r <= detailRows.length; r++) {
-        const cellRef = 'G' + (r + 1);
-        if (detailSheet[cellRef]) {
-            detailSheet[cellRef].z = '#,##0;[Red]-#,##0';
+
+    // Setiap baris data diberi warna sesuai tipe transaksi (hijau lembut = pemasukan,
+    // merah lembut = pengeluaran) supaya sekilas mata langsung bisa membedakan tanpa
+    // harus membaca kolom Tipe satu-satu. Baris genap/ganjil dalam tipe yang sama dibuat
+    // sedikit berbeda gelap-terangnya (zebra striping) supaya baris panjang tetap mudah diikuti.
+    monthItems.forEach((item, idx) => {
+        const isIncome = item.type === 'pemasukan';
+        const r = idx + 1; // baris 0 adalah header
+        const stripe = idx % 2 === 0;
+        const fillColor = isIncome
+            ? (stripe ? 'EAF7EF' : 'DCF3E3')
+            : (stripe ? 'FDEEEC' : 'FBDEDA');
+        const textColor = isIncome ? '1E8449' : 'C0392B';
+
+        for (let c = 0; c < detailHeader.length; c++) {
+            const cellRef = XLSX.utils.encode_cell({ r, c });
+            if (!detailSheet[cellRef]) continue;
+            detailSheet[cellRef].s = {
+                fill: { patternType: 'solid', fgColor: { rgb: fillColor } },
+                font: c === 2 || c === 6 ? { bold: true, color: { rgb: textColor } } : { color: { rgb: '1a2236' } },
+                border: {
+                    bottom: { style: 'thin', color: { rgb: 'FFFFFF' } }
+                }
+            };
         }
-    }
+        // Format kolom nominal (kolom G / index 6) tetap pakai format Rupiah
+        const nominalRef = XLSX.utils.encode_cell({ r, c: 6 });
+        if (detailSheet[nominalRef]) detailSheet[nominalRef].z = '#,##0;[Red]-#,##0';
+    });
 
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, summarySheet, 'Ringkasan');
@@ -1111,11 +1151,17 @@ function exportMonthToExcel(year, monthIndex, historyOverride) {
 
 // Helper kecil untuk styling sel (pakai xlsx-js-style, bukan xlsx community biasa yang
 // tidak mendukung styling sama sekali)
-function styleExportHeaderCell(sheet, cellRef, { bold, size, color, fill } = {}) {
+function styleExportHeaderCell(sheet, cellRef, { bold, size, color, fill, border } = {}) {
     if (!sheet[cellRef]) sheet[cellRef] = { t: 's', v: '' };
     sheet[cellRef].s = {
         font: { bold: !!bold, sz: size || 12, color: { rgb: color || '1A2236' } },
-        fill: fill ? { patternType: 'solid', fgColor: { rgb: fill } } : undefined
+        fill: fill ? { patternType: 'solid', fgColor: { rgb: fill } } : undefined,
+        border: border ? {
+            top: { style: 'thin', color: { rgb: 'FFFFFF' } },
+            bottom: { style: 'thin', color: { rgb: 'FFFFFF' } },
+            left: { style: 'thin', color: { rgb: 'FFFFFF' } },
+            right: { style: 'thin', color: { rgb: 'FFFFFF' } }
+        } : undefined
     };
 }
 
